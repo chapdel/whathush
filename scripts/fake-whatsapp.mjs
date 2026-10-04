@@ -14,18 +14,42 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const page = path.join(root, "tests", "fixtures", "fake-whatsapp", "index.html");
 
-export function startFakeWhatsApp() {
+// Photo de profil servie par une seconde origine, comme pps.whatsapp.net (F10).
+const AVATAR = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+function listen(server) {
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
+}
+
+export async function startFakeWhatsApp() {
   const html = fs.readFileSync(page);
   const server = http.createServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
     response.end(html);
   });
-  return new Promise((resolve) => {
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      resolve({ url: `http://127.0.0.1:${port}/`, close: () => server.close() });
-    });
+  const avatars = http.createServer((request, response) => {
+    if (request.url?.startsWith("/avatar.png")) {
+      response.writeHead(200, { "content-type": "image/png" });
+      response.end(AVATAR);
+    } else if (request.url?.startsWith("/huge.png")) {
+      // Au-delà de 256 Kio : refusée par le processus principal.
+      response.writeHead(200, { "content-type": "image/png" });
+      response.end(Buffer.alloc(300 * 1024, 1));
+    } else {
+      response.writeHead(404);
+      response.end();
+    }
   });
+  const port = await listen(server);
+  const avatarPort = await listen(avatars);
+  return {
+    url: `http://127.0.0.1:${port}/`,
+    avatarOrigin: `http://127.0.0.1:${avatarPort}`,
+    close: () => {
+      server.close();
+      avatars.close();
+    }
+  };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

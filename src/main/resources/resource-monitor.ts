@@ -2,6 +2,7 @@
 
 import { app } from "electron";
 import { EventEmitter } from "node:events";
+import { formatNumber, t } from "../../shared/i18n";
 import type { Notice } from "../../shared/ipc";
 import { accountsToAutoSleep, sleepSuggestion } from "../core/resources";
 import type { AccountManager } from "../accounts/account-manager";
@@ -89,14 +90,16 @@ export class ResourceMonitor extends EventEmitter<{ changed: [] }> {
       );
       if (candidate) {
         this.lastSuggestion = now;
-        const total = ((this.totalMB ?? 0) / 1024).toFixed(1).replace(".", ",");
-        const freed = candidate.memoryMB ? ` et libérerait environ ${candidate.memoryMB} Mo` : "";
+        const total = formatNumber((this.totalMB ?? 0) / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        const message = candidate.memoryMB
+          ? t("notice.ramSuggestionFreed", { total, label: candidate.label, freed: candidate.memoryMB })
+          : t("notice.ramSuggestion", { total, label: candidate.label });
         this.suggest({
           id: "ram-suggestion",
           level: "info",
           sticky: true,
-          message: `L’application utilise ${total} Go. Mettre « ${candidate.label} » en veille ne le déconnecte pas${freed}.`,
-          action: { label: "Mettre en veille", command: { type: "sleep-account", id: candidate.id } }
+          message,
+          action: { label: t("notice.ramSuggestionAction"), command: { type: "sleep-account", id: candidate.id } }
         });
       }
     }

@@ -2,7 +2,8 @@
 // nouveau fichier ; l'écriture sur disque est l'affaire du Store.
 
 import { LABEL_MAX_LENGTH, leastUsedAccountColor, MAX_ACCOUNTS, partitionFor } from "../../shared/constants";
-import type { AccountConfig, AccountsFile, NotificationSettings } from "../../shared/schemas";
+import { t } from "../../shared/i18n";
+import type { AccountConfig, AccountPermissions, AccountsFile, NotificationSettings } from "../../shared/schemas";
 
 export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   enabled: true,
@@ -13,8 +14,16 @@ export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   badgeWhileSnoozed: true
 };
 
+/** F8 : appels permis, localisation refusée, partage d'écran toujours demandé. */
+export const DEFAULT_PERMISSIONS: AccountPermissions = {
+  microphone: "allow",
+  camera: "allow",
+  location: "deny",
+  screenShare: "ask"
+};
+
 export function emptyAccountsFile(): AccountsFile {
-  return { schemaVersion: 1, accounts: [], pendingPartitionDeletion: [] };
+  return { schemaVersion: 2, accounts: [], pendingPartitionDeletion: [] };
 }
 
 export interface NewAccountInput {
@@ -29,9 +38,9 @@ export function addAccount(
   now: Date,
   id: string = globalThis.crypto.randomUUID()
 ): { file: AccountsFile; account: AccountConfig } {
-  if (file.accounts.length >= MAX_ACCOUNTS) throw new Error(`limite de ${MAX_ACCOUNTS} comptes atteinte`);
+  if (file.accounts.length >= MAX_ACCOUNTS) throw new Error(t("error.tooManyAccounts", { max: MAX_ACCOUNTS }));
   const label = input.label.trim().slice(0, LABEL_MAX_LENGTH);
-  if (!label) throw new Error("le nom du compte est vide");
+  if (!label) throw new Error(t("error.emptyLabel"));
   const timestamp = now.toISOString();
   const account: AccountConfig = {
     id,
@@ -43,7 +52,12 @@ export function addAccount(
     notifications: { ...DEFAULT_NOTIFICATIONS },
     sleeping: false,
     createdAt: timestamp,
-    lastOpenedAt: timestamp
+    lastOpenedAt: timestamp,
+    zoomPercent: 100,
+    permissions: { ...DEFAULT_PERMISSIONS },
+    proxyMode: "inherit",
+    proxy: null,
+    themeHintShown: false
   };
   return { file: { ...file, accounts: [...file.accounts, account] }, account };
 }

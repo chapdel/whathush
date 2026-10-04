@@ -1,29 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Métadonnées AppStream (Flathub, logithèques). -->
+<!-- Métadonnées AppStream (Flathub, logithèques) : anglais par défaut, français par xml:lang (F12). -->
 <component type="desktop-application">
   <id>io.github.chapdel.mcdesk</id>
   <metadata_license>CC0-1.0</metadata_license>
   <!-- Licence à choisir avant publication (MIT, GPL-3.0-or-later…). -->
   <project_license>LicenseRef-proprietary</project_license>
   <name>WhatHush</name>
-  <summary>Plusieurs comptes WhatsApp Web, Snooze et Focus</summary>
+  <summary>Several WhatsApp Web accounts, with Snooze and Focus</summary>
+  <summary xml:lang="fr">Plusieurs comptes WhatsApp Web, Snooze et Focus</summary>
   <developer id="io.github.chapdel">
     <name>chapdel</name>
   </developer>
   <description>
     <p>
+      WhatHush shows the official WhatsApp Web for several accounts at once, each
+      isolated in its own session, and helps you stay in control of your attention.
+    </p>
+    <p xml:lang="fr">
       WhatHush affiche le WhatsApp Web officiel pour plusieurs comptes à la fois,
       chacun isolé dans sa propre session, et vous aide à garder la main sur
       votre attention.
     </p>
     <ul>
-      <li>Plusieurs comptes connectés en même temps, sans se déconnecter</li>
-      <li>Snooze par compte, horaires automatiques et profils Focus</li>
-      <li>Veille profonde pour libérer la mémoire d’un compte inutilisé</li>
-      <li>Notifications du bureau avec le nom du compte, badge de non-lus</li>
-      <li>Aucun serveur, aucune statistique, aucun suivi</li>
+      <li>Several accounts connected at the same time, without logging out</li>
+      <li xml:lang="fr">Plusieurs comptes connectés en même temps, sans se déconnecter</li>
+      <li>Per-account Snooze, automatic schedules and Focus profiles</li>
+      <li xml:lang="fr">Snooze par compte, horaires automatiques et profils Focus</li>
+      <li>Deep sleep to free the memory of an account you are not using</li>
+      <li xml:lang="fr">Veille profonde pour libérer la mémoire d’un compte inutilisé</li>
+      <li>Desktop notifications with the account name, unread badge</li>
+      <li xml:lang="fr">Notifications du bureau avec le nom du compte, badge de non-lus</li>
+      <li>Interface in English and French</li>
+      <li xml:lang="fr">Interface en français et en anglais</li>
+      <li>No server, no analytics, no tracking</li>
+      <li xml:lang="fr">Aucun serveur, aucune statistique, aucun suivi</li>
     </ul>
     <p>
+      Independent project, not affiliated with WhatsApp LLC or Meta Platforms.
+    </p>
+    <p xml:lang="fr">
       Projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms.
     </p>
   </description>
@@ -37,8 +52,10 @@
   </categories>
   <keywords>
     <keyword>whatsapp</keyword>
-    <keyword>messagerie</keyword>
-    <keyword>multi-comptes</keyword>
+    <keyword>messaging</keyword>
+    <keyword>multi-account</keyword>
+    <keyword xml:lang="fr">messagerie</keyword>
+    <keyword xml:lang="fr">multi-comptes</keyword>
   </keywords>
   <content_rating type="oars-1.1">
     <content_attribute id="social-chat">intense</content_attribute>
@@ -52,6 +69,12 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.2.0" date="2026-10-05">
+      <description>
+        <p>English interface, offline spell checking, lock by code, privacy veil, per-account permissions, HTTP and SOCKS5 proxies with authentication, now-playing indicator, download history, per-account zoom, keyboard shortcuts sheet and diagnostic report.</p>
+        <p xml:lang="fr">Interface en anglais, correcteur hors ligne, verrouillage par code, voile de confidentialité, autorisations par compte, proxys HTTP et SOCKS5 avec authentification, indicateur « En cours de lecture », historique des téléchargements, zoom par compte, feuille des raccourcis et rapport de diagnostic.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-10-04">
       <description>
         <p>Première version : comptes multiples, Snooze, Focus, horaires, veille profonde.</p>

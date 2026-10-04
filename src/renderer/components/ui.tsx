@@ -1,10 +1,14 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode, type CSSProperties } from "react";
 import { initials } from "../../shared/format";
+import { t } from "../../shared/i18n";
 import type { AccountItem } from "../../shared/ipc";
 import { ACCOUNT_COLORS } from "../../shared/constants";
 
 export const COLORS: string[] = ACCOUNT_COLORS.map((color) => color.value);
-const COLOR_NAMES: string[] = ACCOUNT_COLORS.map((color) => color.name);
+const colorName = (color: string): string | null => {
+  const entry = ACCOUNT_COLORS.find((candidate) => candidate.value === color);
+  return entry ? t(`color.${entry.name}`) : null;
+};
 
 // --- Icônes (traits simples, couleur héritée) ---------------------------------------
 
@@ -62,7 +66,18 @@ const paths: Record<string, ReactNode> = {
   warning: <><path d="M12 3L2 21h20L12 3zM12 9v5M12 17h.01" /></>,
   refresh: <><path d="M20 6v5h-5M4 18v-5h5M5 8a8 8 0 0 1 13-3l2 3M4 16l2 3a8 8 0 0 0 13-3" /></>,
   check: <path d="M5 12l4 4L19 6" />,
-  chevron: <path d="M6 9l6 6 6-6" />
+  chevron: <path d="M6 9l6 6 6-6" />,
+  play: <path d="M7 4l13 8-13 8z" />,
+  pause: <path d="M7 4v16M17 4v16" />,
+  lock: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+  "eye-off": <><path d="M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-2.6 3.3M6.6 6.7C4.3 8.3 3 12 3 12s4 6 9 6a9 9 0 0 0 4.4-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2" /></>,
+  eye: <><path d="M3 12s4-6 9-6 9 6 9 6-4 6-9 6-9-6-9-6z" /><circle cx="12" cy="12" r="3" /></>,
+  download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  keyboard: <><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" /></>,
+  shield: <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />,
+  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
+  file: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /></>,
+  folder: <path d="M3 6h6l2 2h10v11H3z" />
 };
 
 export type IconName = keyof typeof paths;
@@ -106,6 +121,7 @@ export function Avatar({
   let state: ReactNode = null;
   if (account) {
     if (account.inCall) state = <span className="state call"><Icon name="phone" /></span>;
+    else if (account.playback?.playing) state = <span className="state call"><Icon name="play" /></span>;
     else if (account.lifecycle === "needs_qr" || account.lifecycle === "crashed") state = <span className="state warn"><Icon name="warning" /></span>;
     else if (account.lifecycle === "offline") state = <span className="state"><Icon name="wifi-off" /></span>;
     else if (account.lifecycle === "sleeping") state = <span className="state"><Icon name="moon" /></span>;
@@ -139,7 +155,7 @@ function radioKeys(event: KeyboardEvent<HTMLDivElement>): void {
   next?.click();
 }
 
-export function Segmented<T extends string>({ value, options, onChange, "aria-label": label = "Thème" }: { value: T; options: Array<{ value: T; label: string }>; onChange(value: T): void; "aria-label"?: string }) {
+export function Segmented<T extends string>({ value, options, onChange, "aria-label": label }: { value: T; options: Array<{ value: T; label: string }>; onChange(value: T): void; "aria-label": string }) {
   return (
     <div className="segmented" role="radiogroup" aria-label={label} onKeyDown={radioKeys}>
       {options.map((option) => (
@@ -171,7 +187,7 @@ export function Modal({ title, children, onClose }: { title: string; children: R
         }}>
         <div className="modal-heading">
         <h2>{title}</h2>
-        <button type="button" className="icon-btn" aria-label="Fermer le dialogue" title="Fermer (Échap)" onClick={onClose}><Icon name="close" /></button>
+        <button type="button" className="icon-btn" aria-label={t("ui.closeDialog")} title={t("ui.closeEscape")} onClick={onClose}><Icon name="close" /></button>
         </div>
         {children}
       </dialog>
@@ -180,7 +196,7 @@ export function Modal({ title, children, onClose }: { title: string; children: R
 
 export function Swatches({ value, onChange }: { value: string; onChange(color: string): void }) {
   return (
-    <div className="swatches" role="radiogroup" aria-label="Couleur" onKeyDown={radioKeys}>
+    <div className="swatches" role="radiogroup" aria-label={t("ui.color")} onKeyDown={radioKeys}>
       {(COLORS.includes(value) ? COLORS : [value, ...COLORS]).map((color) => (
         <button
           key={color}
@@ -188,8 +204,8 @@ export function Swatches({ value, onChange }: { value: string; onChange(color: s
           role="radio"
           aria-checked={value === color}
           tabIndex={value === color ? 0 : -1}
-          aria-label={COLOR_NAMES[COLORS.indexOf(color)] ?? "Couleur actuelle"}
-          title={COLOR_NAMES[COLORS.indexOf(color)] ?? "Couleur actuelle"}
+          aria-label={colorName(color) ?? t("ui.currentColor")}
+          title={colorName(color) ?? t("ui.currentColor")}
           className={`swatch${value === color ? " selected" : ""}`}
           style={{ background: color }}
           onClick={() => onChange(color)}
@@ -201,16 +217,16 @@ export function Swatches({ value, onChange }: { value: string; onChange(color: s
 
 export function AccountIconPicker({ value, onChange }: { value: string | null; onChange(icon: string | null): void }) {
   const choices = [
-    { value: null, label: "Initiales" },
-    { value: "user", label: "Personnel" },
-    { value: "briefcase", label: "Travail" },
-    { value: "home", label: "Maison" },
-    { value: "chat", label: "Discussions" },
-    { value: "moon", label: "Soirée" },
-    ...(value && !["user", "briefcase", "home", "chat", "moon"].includes(value) ? [{ value, label: "Icône actuelle" }] : [])
+    { value: null, label: t("ui.iconInitials") },
+    { value: "user", label: t("ui.iconPersonal") },
+    { value: "briefcase", label: t("ui.iconWork") },
+    { value: "home", label: t("ui.iconHome") },
+    { value: "chat", label: t("ui.iconChat") },
+    { value: "moon", label: t("ui.iconEvening") },
+    ...(value && !["user", "briefcase", "home", "chat", "moon"].includes(value) ? [{ value, label: t("ui.iconCurrent") }] : [])
   ];
   return (
-    <div className="icon-choices" role="radiogroup" aria-label="Icône" onKeyDown={radioKeys}>
+    <div className="icon-choices" role="radiogroup" aria-label={t("ui.icon")} onKeyDown={radioKeys}>
       {choices.map((choice) => (
         <button key={choice.label} type="button" role="radio" tabIndex={value === choice.value ? 0 : -1} aria-checked={value === choice.value}
           aria-label={choice.label} title={choice.label} className={`identity-icon${value === choice.value ? " selected" : ""}`} onClick={() => onChange(choice.value)}>
@@ -219,4 +235,9 @@ export function AccountIconPicker({ value, onChange }: { value: string | null; o
       ))}
     </div>
   );
+}
+
+/** Touches d'un raccourci (F1) : « Shift » se dit « Maj » en français. */
+export function ShortcutKeys({ keys }: { keys: readonly string[] }) {
+  return <span className="keys">{keys.map((key) => <kbd key={key}>{key === "Shift" ? t("keys.shift") : key}</kbd>)}</span>;
 }

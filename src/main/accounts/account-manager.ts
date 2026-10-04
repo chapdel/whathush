@@ -4,6 +4,7 @@
 
 import { EventEmitter } from "node:events";
 import type { RenderProcessGoneDetails, Session } from "electron";
+import { t } from "../../shared/i18n";
 import type { LinkStatePayload, Notice } from "../../shared/ipc";
 import type { AccountConfig } from "../../shared/schemas";
 import { addAccount, accountsInOrder, removeAccount, type NewAccountInput } from "../core/accounts";
@@ -47,6 +48,8 @@ export interface AccountManagerDeps {
   pageGone(accountId: string, webContentsId: number): void;
   /** Toutes les pages du compte ont disparu (veille, suppression, crash). */
   accountGone(accountId: string): void;
+  /** Le compte vient d'être connecté (F11 : aide du thème, une fois par compte). */
+  linked?(accountId: string): void;
   now?: () => number;
 }
 
@@ -54,6 +57,8 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
   private readonly runtimes = new Map<string, Runtime>();
   private activeId: string | null = null;
   private modalOpen = false;
+  /** F6 : verrouillé, aucune vue n'est affichée. */
+  private locked = false;
   private readonly now: () => number;
   private readonly lastOpened = new Map<string, string>();
   private lastOpenedTimer: NodeJS.Timeout | null = null;
@@ -148,7 +153,10 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     }
     this.deps.log.info("lifecycle", { id, from: runtime.lifecycle, event, to: next });
     runtime.lifecycle = next;
-    if (next === "ready") runtime.wasLinked = true;
+    if (next === "ready") {
+      runtime.wasLinked = true;
+      this.deps.linked?.(id);
+    }
     if (next !== "loading" && runtime.adapterTimer) {
       clearTimeout(runtime.adapterTimer);
       runtime.adapterTimer = null;
@@ -160,14 +168,14 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     }
     if (event === "remote-logout") {
       runtime.wasLinked = false;
-      const label = this.account(id)?.label ?? "Un compte";
-      this.deps.notify({ id: `logout-${id}`, level: "warning", message: `« ${label} » a été déconnecté. Scannez de nouveau le QR code pour le relier.` });
+      const label = this.account(id)?.label ?? t("common.anAccount");
+      this.deps.notify({ id: `logout-${id}`, level: "warning", message: t("notice.loggedOut", { label }) });
     }
     this.refreshVisibility();
     this.emit("changed");
   }
 
-  private load(id: string): void {
+  private load(id: string, url: string = this.deps.targetUrl): void {
     if (!this.account(id)) return;
     const runtime = this.runtimeOf(id);
     const views = this.deps.views();
@@ -177,7 +185,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     runtime.unread = null;
     runtime.audible = false;
     this.deps.accountGone(id);
-    views.create(id, this.deps.targetUrl);
+    views.create(id, url);
     this.refreshVisibility();
   }
 
@@ -243,8 +251,8 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     const { crashTimes, decision } = onRendererGone(runtime.crashTimes, this.now());
     runtime.crashTimes = crashTimes;
     if (decision.action === "give-up") {
-      const label = this.account(id)?.label ?? "Un compte";
-      this.deps.notify({ id: `crash-${id}`, level: "error", message: `« ${label} » a planté plusieurs fois de suite. Utilisez « Recharger » pour réessayer.` });
+      const label = this.account(id)?.label ?? t("common.anAccount");
+      this.deps.notify({ id: `crash-${id}`, level: "error", message: t("notice.crashedRepeatedly", { label }) });
       return;
     }
     runtime.recreateTimer = setTimeout(() => {
@@ -300,7 +308,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
       created = result.account;
       return result.file;
     });
-    if (!saved || !created) throw new Error("configuration en lecture seule : compte non créé");
+    if (!saved || !created) throw new Error(t("error.readOnlyConfig"));
     this.deps.log.info("account-added", { id: created.id });
     this.runtimeOf(created.id);
     this.load(created.id);
@@ -397,7 +405,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     return true;
   }
 
-  wake(id: string): void {
+  wake(id: string, url?: string): void {
     const account = this.account(id);
     if (!account) return;
     if (account.sleeping) {
@@ -409,7 +417,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     // La veille automatique compte à partir du réveil, pas de la dernière fois
     // où le compte a été affiché (il se rendormirait aussitôt).
     this.runtimeOf(id).hiddenSince = id === this.activeId ? null : this.now();
-    this.load(id);
+    this.load(id, url);
     this.emit("changed");
   }
 
@@ -432,11 +440,12 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     const account = this.account(id);
     if (!account) return false;
     if (this.deps.calls.inCall(id)) {
-      this.deps.notify({ id: `link-in-call-${id}`, level: "info", message: `Un appel est en cours sur « ${account.label} » : terminez-le avant d’ouvrir ce lien.` });
+      this.deps.notify({ id: `link-in-call-${id}`, level: "info", message: t("notice.linkInCall", { label: account.label }) });
       return false;
     }
-    if (account.sleeping || !this.deps.views().has(id)) this.wake(id);
-    this.deps.views().load(id, url);
+    // Compte endormi : le lien est la première page chargée, après son proxy (F9).
+    if (account.sleeping || !this.deps.views().has(id)) this.wake(id, url);
+    else this.deps.views().load(id, url);
     this.switchTo(id);
     return true;
   }
@@ -446,11 +455,53 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     this.refreshVisibility();
   }
 
-  /** La vue du compte actif est affichée s'il en a une et qu'aucune modale n'est ouverte. */
+  setLocked(locked: boolean): void {
+    this.locked = locked;
+    this.refreshVisibility();
+  }
+
+  /** La vue du compte actif est affichée s'il en a une, sans modale ouverte ni verrou. */
   refreshVisibility(): void {
     const id = this.activeId;
     const views = this.deps.views();
-    views.show(id && !this.modalOpen && views.has(id) ? id : null);
+    views.show(id && !this.modalOpen && !this.locked && views.has(id) ? id : null);
+  }
+
+  /**
+   * F6, « Code oublié » : efface la session de chaque compte (il faudra rescanner les QR
+   * codes). Les vues sont détruites avant l'effacement : rien ne reste lisible. Renvoie
+   * false si un effacement a échoué : le verrou doit alors rester en place.
+   */
+  async resetAllSessions(): Promise<boolean> {
+    let wiped = true;
+    const ids = this.accounts().map((account) => account.id);
+    for (const id of ids) {
+      const runtime = this.runtimeOf(id);
+      this.clearTimers(runtime);
+      this.deps.views().destroy(id);
+      this.deps.accountGone(id);
+      runtime.lifecycle = "sleeping";
+      runtime.wasLinked = false;
+      runtime.unread = null;
+    }
+    for (const id of ids) {
+      const ses = this.deps.sessionFor(id);
+      try {
+        await ses.clearStorageData();
+        await ses.clearCache();
+      } catch (error) {
+        wiped = false;
+        this.deps.log.error("clear-storage-failed", { id, error: String(error) });
+      }
+    }
+    for (const id of ids) {
+      const account = this.account(id);
+      if (account && !account.sleeping) this.load(id);
+    }
+    this.deps.log.info("sessions-reset", { count: ids.length, wiped });
+    this.refreshVisibility();
+    this.emit("changed");
+    return wiped;
   }
 
   /** Comptes cachés et depuis quand, pour la veille automatique (§17). */

@@ -10,6 +10,7 @@ import {
   nativeTheme,
   net,
   powerMonitor,
+  screen,
   session,
   shell,
   webContents as allWebContents,
@@ -18,38 +19,53 @@ import {
   type Session,
   type WebContents
 } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import { compactSidebar, CONNECTION_BAR_HEIGHT, DEFAULT_ACCOUNT_COLOR, SIDEBAR_WIDTH, WHATSAPP_ORIGIN } from "../shared/constants";
-import { DISCLAIMER, PRODUCT_NAME } from "../shared/identity";
+import { locale, localeTag, resolveLocale, setLocale, t } from "../shared/i18n";
+import { ISSUES_URL, PRODUCT_NAME } from "../shared/identity";
 import {
+  AdapterCheckPayloadSchema,
   CHANNELS,
   CommandSchema,
   EnvPayloadSchema,
   LinkStatePayloadSchema,
   MediaPayloadSchema,
   NotifyPayloadSchema,
+  PlaybackPayloadSchema,
+  VeilRevealPayloadSchema,
   VisibilityPayloadSchema,
   type AccountItem,
   type AccountPatch,
   type Command,
   type Notice,
   type PreferencesPatch,
+  type SettingsSection,
   type SettingsState,
   type ShellState
 } from "../shared/ipc";
-import type { AccountConfig } from "../shared/schemas";
+import type { AccountConfig, ProxyServer } from "../shared/schemas";
+import { matchShortcut, nextZoom, shortcutDigit } from "../shared/shortcuts";
 import { AccountManager } from "./accounts/account-manager";
 import { CallCoordinator } from "./calls/call-coordinator";
 import { reorderAccounts } from "./core/accounts";
 import { accountMenu, focusMenu, snoozeMenu, trayMenu, type MenuAction, type MenuItemModel } from "./core/menus";
-import { normalizeOrigin } from "./core/permissions";
+import { alwaysAllow, normalizeOrigin, type PermissionSubject } from "./core/permissions";
+import { PlaybackTracker, shouldMute } from "./core/playback";
+import { BUNDLED_DICTIONARIES, spellcheckPlan, systemDictionary, type SpellcheckPlan } from "./core/spellcheck";
+import { trayIconName } from "./core/tray";
 import { attachContextMenu, isTrayAvailable, setLaunchAtLogin, setWhatsappLinkHandler } from "./desktop/desktop";
+import { systemInfo, writeReport } from "./diagnostic/report";
 import { DownloadManager } from "./downloads/download-manager";
 import { LinkRouter, linksFromArgv } from "./links/link-router";
 import type { Logger } from "./log";
+import { AvatarFetcher } from "./notifications/avatar-fetcher";
 import { NotificationManager, type ShownNotification } from "./notifications/notification-manager";
 import { PolicyService } from "./policy/policy-service";
+import { VeilService } from "./privacy/veil-service";
+import { ProxyService, type ProxyTestResult } from "./proxy/proxy-service";
 import { ResourceMonitor } from "./resources/resource-monitor";
+import { LockService } from "./security/lock-service";
 import { systemTimeZone } from "./system-timezone";
 import { accountSession, applySpellcheck, chromeUserAgent, usesWaylandPortal } from "./sessions/session-factory";
 import type { AppStore } from "./storage/app-store";
@@ -67,6 +83,8 @@ export interface AppOptions {
   startHidden: boolean;
   devTools: boolean;
   initialArgv: string[];
+  /** Tests : origines autorisées pour les photos des notifications (F10). */
+  avatarOrigins?: string[];
 }
 
 /** Ce que les tests de bout en bout observent (WHATHUSH_TEST=1, §39). */
@@ -76,9 +94,20 @@ export interface TestProbe {
   downloads: Array<{ accountId: string; file: string; state: string }>;
   visibility: Record<string, string>;
   env: Record<string, unknown>;
+  /** F2, F3 : fichiers ouverts ou montrés dans leur dossier. */
+  opened: Array<{ action: "open" | "show"; file: string }>;
+  /** F6 : inactivité simulée du système, en secondes. */
+  idleSeconds: number;
 }
 
 const NETWORK_POLL_MS = 10_000;
+
+/** Même serveur de proxy (type, hôte, port) : les identifiants enregistrés restent valables. */
+function sameServer(a: ProxyServer | null, b: ProxyServer | null): boolean {
+  return Boolean(a && b && a.type === b.type && a.host.toLowerCase() === b.host.toLowerCase() && a.port === b.port);
+}
+/** Commandes acceptées pendant le verrouillage (F6). */
+const ALLOWED_WHILE_LOCKED: ReadonlySet<Command["type"]> = new Set(["unlock", "forgot-lock-code", "set-modal", "dismiss-notice"]);
 
 export class Application {
   readonly store: AppStore;
@@ -90,7 +119,12 @@ export class Application {
   readonly links: LinkRouter;
   readonly downloads: DownloadManager;
   readonly resources: ResourceMonitor;
+  readonly lock: LockService;
+  readonly veil: VeilService;
+  readonly proxy: ProxyService;
+  readonly playback = new PlaybackTracker();
   readonly probe: TestProbe | null;
+  private readonly avatars: AvatarFetcher;
   private views!: ViewManager;
   private mainWindow!: BrowserWindow;
   private settingsWindow: BrowserWindow | null = null;
@@ -101,6 +135,10 @@ export class Application {
   private quitting = false;
   private pushScheduled = false;
   private traySignature = "";
+  private zoomToast: ShellState["zoomToast"] = null;
+  private zoomSequence = 0;
+  private sharingScreen = false;
+  private readonly proxyTests: SettingsState["proxyTests"] = {};
   private readonly whatsappOrigin: string;
   private readonly userAgent = chromeUserAgent();
 
@@ -108,10 +146,17 @@ export class Application {
     this.store = options.store;
     this.log = options.log;
     this.whatsappOrigin = options.whatsappOrigin ?? WHATSAPP_ORIGIN;
-    this.probe = options.test ? { notifications: [], external: [], downloads: [], visibility: {}, env: {} } : null;
-    this.notices.push(...this.store.notices);
+    this.probe = options.test ? { notifications: [], external: [], downloads: [], visibility: {}, env: {}, opened: [], idleSeconds: 0 } : null;
+    this.applyLocale();
+    for (const { key, params, ...notice } of this.store.notices) this.notices.push({ ...notice, message: t(key, params) });
 
     this.policy = new PolicyService(this.store, () => new Date(), systemTimeZone);
+    this.lock = new LockService({
+      store: this.store,
+      log: this.log,
+      watchSession: !options.test,
+      ...(this.probe ? { idleSeconds: () => this.probe?.idleSeconds ?? 0 } : {})
+    });
     this.accounts = new AccountManager({
       store: this.store,
       views: () => this.views,
@@ -123,18 +168,24 @@ export class Application {
       pageGone: (_accountId, webContentsId) => {
         this.calls.resetPage(webContentsId);
         this.notifications.closeForPage(webContentsId);
+        if (this.playback.pageGone(webContentsId)) this.pushState();
       },
       accountGone: (accountId) => {
         this.calls.resetAccount(accountId);
         this.notifications.closeForAccount(accountId);
-      }
+        if (this.playback.accountGone(accountId)) this.pushState();
+      },
+      linked: (accountId) => this.accountLinked(accountId)
     });
+    this.avatars = new AvatarFetcher({ sessionFor: (id) => this.sessionFor(id), log: this.log, extraOrigins: options.avatarOrigins ?? [] });
     this.notifications = new NotificationManager({
       log: this.log,
       account: (id) => this.accounts.account(id),
       policy: (id) => this.policy.policy(id),
       accountsInCall: () => this.calls.accountsInCall(),
       open: (id, webContentsId, notificationId) => this.openFromNotification(id, webContentsId, notificationId),
+      locked: () => this.lock.isLocked(),
+      fetchAvatar: (id, url) => this.avatars.fetch(id, url),
       ...(this.probe ? { sink: (notification: ShownNotification) => this.probe?.notifications.push(notification) } : {})
     });
     this.links = new LinkRouter({
@@ -146,20 +197,47 @@ export class Application {
         this.showMainWindow();
       },
       popupPreload: path.join(options.paths.preloadDir, "whatsapp.js"),
-      registerPopup: (accountId, window) => this.views.registerPopup(accountId, window),
+      registerPopup: (accountId, window) => {
+        this.views.registerPopup(accountId, window);
+        this.configurePage(accountId, window.webContents);
+      },
       askAccount: () => {
         this.showMainWindow();
         this.pushState();
       },
+      locked: () => this.lock.isLocked(),
       ...(this.probe ? { openExternal: (url: string) => this.probe?.external.push(url) } : {})
     });
     this.downloads = new DownloadManager({
       log: this.log,
+      store: this.store,
       askLocation: () => this.store.get("preferences").askDownloadLocation,
+      retentionDays: () => this.store.get("preferences").downloadsHistoryDays,
       accountLabel: (id) => this.accounts.account(id)?.label ?? "",
-      ...(this.probe ? { sink: (event: { accountId: string; file: string; state: string }) => this.probe?.downloads.push(event) } : {})
+      locked: () => this.lock.isLocked(),
+      ...(this.probe
+        ? {
+            sink: (event: { accountId: string; file: string; state: string }) => this.probe?.downloads.push(event),
+            opened: (action: "open" | "show", file: string) => this.probe?.opened.push({ action, file })
+          }
+        : {})
     });
     this.resources = new ResourceMonitor(this.accounts, () => this.views, this.calls, (notice) => this.addNotice(notice));
+    this.veil = new VeilService({ log: this.log, preferences: () => this.store.get("preferences").privacyVeil, pages: () => this.views?.allPages() ?? [] });
+    this.proxy = new ProxyService({
+      store: this.store,
+      log: this.log,
+      sessionFor: (id) => this.sessionFor(id),
+      account: (id) => this.accounts.account(id),
+      accounts: () => this.accounts.accounts(),
+      pages: (id) => this.views?.pages(id) ?? [],
+      accountForPage: (contents) => this.views?.accountIdFor(contents),
+      notifyAuthProblem: (scope, kind) => {
+        const label = scope === "global" ? t("proxy.scopeGlobal") : (this.accounts.account(scope)?.label ?? t("common.anAccount"));
+        this.addNotice({ id: `proxy-${kind}-${scope}`, level: "warning", message: t(kind === "failed" ? "notice.proxyAuthFailed" : "notice.proxyCredentialsNeeded", { scope: label }) });
+      },
+      includeLoopback: options.test
+    });
   }
 
   // --- Démarrage ---------------------------------------------------------------------
@@ -178,7 +256,9 @@ export class Application {
       window: this.mainWindow,
       preloadPath: path.join(this.options.paths.preloadDir, "whatsapp.js"),
       sessionFor: (id) => this.sessionFor(id),
-      configure: (id, webContents) => this.configureWebContents(id, webContents),
+      configure: (id, webContents) => this.configurePage(id, webContents),
+      prepare: (id) => this.proxy.apply(id),
+      zoomFor: (id) => this.accounts.account(id)?.zoomPercent ?? 100,
       bounds: () => this.viewBounds(),
       events: this.accounts,
       log: this.log,
@@ -189,17 +269,37 @@ export class Application {
     this.registerIpc();
     this.wireSystem();
 
-    for (const source of [this.accounts, this.policy, this.calls, this.resources] as const) {
+    for (const source of [this.accounts, this.policy, this.calls, this.resources, this.downloads, this.veil, this.lock] as const) {
       source.on("changed", () => this.pushState());
     }
     this.policy.on("changed", () => this.applyAudio());
-    this.calls.on("changed", () => this.applyAudio());
+    this.calls.on("changed", () => {
+      this.applyAudio();
+      // F7 : voile automatique au début d'un partage d'écran.
+      const sharing = this.calls.sharingScreen();
+      if (sharing !== this.sharingScreen) {
+        this.sharingScreen = sharing;
+        this.veil.screenShareChanged(sharing);
+      }
+    });
     this.accounts.on("changed", () => this.applyAudio());
     this.accounts.on("changed", () => this.views.relayout());
     this.store.on("change", (key) => {
       if (key === "preferences") this.views.relayout();
-      if (key !== "preferences") this.policy.recompute();
+      if (key === "accounts" || key === "schedules" || key === "focus") this.policy.recompute();
       this.pushState();
+    });
+    // F6 : verrouillé, aucune page WhatsApp n'est affichée (vues et popups), les paramètres
+    // sont fermés et le clavier va à l'écran de verrouillage, jamais à une vue masquée.
+    this.lock.on("locked", () => {
+      this.accounts.setLocked(true);
+      this.views.setPopupsHidden(true);
+      if (this.settingsWindow && !this.settingsWindow.isDestroyed()) this.settingsWindow.close();
+      if (!this.mainWindow.isDestroyed()) this.mainWindow.webContents.focus();
+    });
+    this.lock.on("unlocked", () => {
+      this.accounts.setLocked(false);
+      this.views.setPopupsHidden(false);
     });
 
     if (this.trayAvailable && process.env.WHATHUSH_TRAY !== "0") {
@@ -207,6 +307,9 @@ export class Application {
       this.tray.create();
     }
 
+    this.downloads.start();
+    // Avant les comptes : verrouillé au démarrage, aucune vue ne s'affiche, même un instant.
+    this.lock.start();
     this.policy.start();
     this.accounts.start();
     this.resources.start();
@@ -222,9 +325,24 @@ export class Application {
       userAgent: this.userAgent,
       log: this.log,
       onDownload: (accountId, item) => this.downloads.handle(accountId, item),
-      spellcheckLanguages: () => this.store.get("preferences").spellcheckLanguages,
-      chooseScreen: (accountId, sources) => this.chooseScreen(accountId, sources)
+      spellcheck: () => this.spellcheckPlan(),
+      chooseScreen: (accountId, sources) => this.chooseScreen(accountId, sources),
+      permissions: (accountId) => this.accounts.account(accountId)?.permissions ?? { microphone: "deny", camera: "deny", location: "deny", screenShare: "deny" },
+      askPermission: (accountId, subject) => this.askPermission(accountId, subject)
     });
+  }
+
+  /** F5 : langues du correcteur selon le mode choisi. */
+  private spellcheckPlan(): SpellcheckPlan {
+    const preferences = this.store.get("preferences");
+    return spellcheckPlan(preferences.spellcheckMode, preferences.spellcheckLanguages, app.getPreferredSystemLanguages(), session.defaultSession.availableSpellCheckerLanguages);
+  }
+
+  /** F12 : langue choisie, sinon celle du système, sinon l'anglais. */
+  private applyLocale(): void {
+    const { locale: next, tag } = resolveLocale(this.store.get("preferences").language, app.getPreferredSystemLanguages());
+    setLocale(next, tag);
+    this.log.info("locale", { locale: next, tag });
   }
 
   /** §20 : sous X11, confirmation et choix de l'écran (sous Wayland, le portail l'a fait). */
@@ -232,34 +350,76 @@ export class Application {
     const ozone = app.commandLine.getSwitchValue("ozone-platform");
     if (usesWaylandPortal(ozone) || this.options.test) return sources[0] ?? null;
     if (sources.length === 0) return null;
-    const label = this.accounts.account(accountId)?.label ?? "Un compte";
+    const label = this.accounts.account(accountId)?.label ?? t("common.anAccount");
     const { response } = await dialog.showMessageBox(this.mainWindow, {
       type: "question",
-      title: "Partage d’écran",
-      message: `« ${label} » demande à partager votre écran.`,
-      detail: "Tout ce qui s’affiche sur l’écran choisi sera visible par vos correspondants.",
-      buttons: ["Annuler", ...sources.map((source, index) => source.name || `Écran ${index + 1}`)],
+      title: t("dialog.screenShareTitle"),
+      message: t("dialog.screenShareMessage", { label }),
+      detail: t("dialog.screenShareDetail"),
+      buttons: [t("common.cancel"), ...sources.map((source, index) => source.name || t("dialog.screenName", { n: index + 1 }))],
       defaultId: 0,
       cancelId: 0
     });
     return response === 0 ? null : (sources[response - 1] ?? null);
   }
 
-  private configureWebContents(id: string, webContents: WebContents): void {
+  /** F8 : « Demander » ; « Toujours pour ce compte » enregistre « Autoriser ». */
+  private async askPermission(accountId: string, subject: PermissionSubject): Promise<"deny" | "once" | "always"> {
+    const account = this.accounts.account(accountId);
+    if (!account || this.lock.isLocked()) return "deny";
+    const { response } = await dialog.showMessageBox(this.mainWindow, {
+      type: "question",
+      title: t("dialog.permissionTitle"),
+      message: t("dialog.permissionMessage", { label: account.label, what: t(`permission.what.${subject}`) }),
+      buttons: [t("dialog.permissionDeny"), t("dialog.permissionOnce"), t("dialog.permissionAlways")],
+      defaultId: 0,
+      cancelId: 0
+    });
+    if (response === 2) {
+      const current = this.accounts.account(accountId);
+      if (current) this.updateAccount(accountId, { permissions: alwaysAllow(current.permissions, subject) });
+      return "always";
+    }
+    return response === 1 ? "once" : "deny";
+  }
+
+  /** Vue ou popup d'un compte : liens, menu, raccourcis, zoom, voile, WebRTC. */
+  private configurePage(id: string, webContents: WebContents): void {
     this.links.attach(id, webContents);
     attachContextMenu(webContents, {
       devTools: this.options.devTools,
       openLink: (url) => this.links.handleExternal(url)
     });
     webContents.on("before-input-event", (event, input) => this.handleShortcut(event, input, webContents));
+    // Ctrl + molette : Electron ne zoome pas de lui-même, il le signale (F1).
+    webContents.on("zoom-changed", (_event, direction) => this.zoom(direction, id));
+    webContents.on("did-finish-load", () => this.veil.pageLoaded(webContents));
+    webContents.once("destroyed", () => this.veil.pageGone(webContents));
+    this.proxy.applyWebRtc(webContents);
+  }
+
+  private interfaceScale(): number {
+    return this.store.get("preferences").interfaceScale / 100;
   }
 
   private viewBounds(): Electron.Rectangle {
     const [width = 0, height = 0] = this.mainWindow.getContentSize();
-    const sidebar = compactSidebar(width, this.store.get("preferences").sidebarCollapsed) ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded;
+    // F1 : la coque est zoomée ; ses dimensions CSS sont multipliées par l'échelle.
+    const scale = this.interfaceScale();
+    const compact = compactSidebar(width / scale, this.store.get("preferences").sidebarCollapsed);
+    const sidebar = Math.round((compact ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded) * scale);
     const active = this.accounts.active();
-    const top = active && this.accounts.runtime(active)?.lifecycle === "offline" ? CONNECTION_BAR_HEIGHT : 0;
+    const top = active && this.accounts.runtime(active)?.lifecycle === "offline" ? Math.round(CONNECTION_BAR_HEIGHT * scale) : 0;
     return { x: sidebar, y: top, width: Math.max(0, width - sidebar), height: Math.max(0, height - top) };
+  }
+
+  /** F1 : échelle de la coque et des paramètres (pas des vues WhatsApp). */
+  private applyInterfaceScale(): void {
+    const factor = this.interfaceScale();
+    for (const contents of [this.mainWindow.webContents, this.settingsWebContents()]) {
+      if (contents && !contents.isDestroyed() && Math.abs(contents.getZoomFactor() - factor) > 0.001) contents.setZoomFactor(factor);
+    }
+    this.views.relayout();
   }
 
   private wireWindow(): void {
@@ -268,6 +428,15 @@ export class Application {
       window.on(event as "resize", () => this.views.relayout());
     }
     window.on("show", () => this.accounts.refreshVisibility());
+    // F6 et F7 : fenêtre masquée ou réduite, fenêtre qui perd le focus.
+    window.on("hide", () => this.lock.trigger("hide"));
+    window.on("minimize", () => this.lock.trigger("hide"));
+    window.on("blur", () => this.veil.windowBlurred());
+    // F6 : la fenêtre rendrait le clavier à la dernière vue qui l'avait (masquée) ;
+    // verrouillé, il va toujours au champ du code.
+    window.on("focus", () => {
+      if (this.lock.isLocked()) window.webContents.focus();
+    });
     window.on("close", (event) => {
       if (this.quitting) return;
       if (this.store.get("preferences").closeToTray && this.trayAvailable) {
@@ -279,7 +448,10 @@ export class Application {
       }
     });
     window.webContents.on("before-input-event", (event, input) => this.handleShortcut(event, input, window.webContents));
-    window.webContents.on("did-finish-load", () => this.pushState());
+    window.webContents.on("did-finish-load", () => {
+      this.applyInterfaceScale();
+      this.pushState();
+    });
     // §32 : un plantage de la coque la recharge, sans toucher aux vues WhatsApp.
     window.webContents.on("render-process-gone", (_event, details) => {
       this.log.error("shell-renderer-gone", { reason: details.reason });
@@ -296,6 +468,16 @@ export class Application {
     app.on("before-quit", () => {
       this.quitting = true;
       this.accounts.flush();
+      this.lock.stop();
+      this.proxy.stop();
+    });
+    // F9 : identifiants d'un proxy HTTP(S) ; Chromium les redemande s'ils sont refusés.
+    app.on("login", (event, contents, details, authInfo, callback) => {
+      if (!authInfo.isProxy) return;
+      const credentials = this.proxy.handleLogin(contents ?? null, details.url, authInfo);
+      event.preventDefault();
+      if (credentials) callback(credentials.username, credentials.password);
+      else callback();
     });
     // §34 : au réveil, recalculer les politiques et vérifier le réseau.
     powerMonitor.on("resume", () => {
@@ -317,35 +499,93 @@ export class Application {
     }, NETWORK_POLL_MS);
   }
 
-  // --- Raccourcis (§9) -----------------------------------------------------------------
+  // --- Raccourcis (§9, F1) ---------------------------------------------------------------
 
   private handleShortcut(event: Electron.Event, input: Electron.Input, contents: WebContents): void {
     if (input.type !== "keyDown") return;
-    const ctrlOnly = input.control && !input.alt && !input.meta;
-    if (ctrlOnly && !input.shift && /^[1-9]$/.test(input.key)) {
-      event.preventDefault();
-      this.accounts.switchToShortcut(Number(input.key));
-    } else if (ctrlOnly && input.key === "Tab") {
-      event.preventDefault();
-      this.accounts.cycle(input.shift ? -1 : 1);
-    } else if (ctrlOnly && !input.shift && input.key === ",") {
-      event.preventDefault();
-      this.openSettings();
-    } else if (input.key === "F6" && !input.control && !input.alt && !input.meta) {
-      event.preventDefault();
-      const active = this.accounts.active();
-      const view = active ? this.views.webContents(active) : null;
-      if (contents === this.mainWindow.webContents && view && this.views.shown()) view.focus();
-      else {
-        this.mainWindow.webContents.focus();
-        this.mainWindow.webContents.send(CHANNELS.shellRequestFocusAccounts);
-      }
-    } else if (input.key === "F12" && this.options.devTools) {
+    const shortcut = matchShortcut(input);
+    // F6 : verrouillé, aucun raccourci de l'application, ni outils de développement (le
+    // champ du code reste utilisable).
+    if (this.lock.isLocked()) {
+      if (shortcut || input.key === "F12") event.preventDefault();
+      return;
+    }
+    if (input.key === "F12" && this.options.devTools && !input.control && !input.alt && !input.shift) {
       event.preventDefault();
       const id = this.accounts.active();
       const wc = id ? this.views.webContents(id) : null;
       if (wc) wc.isDevToolsOpened() ? wc.closeDevTools() : wc.openDevTools({ mode: "detach" });
+      return;
     }
+    if (!shortcut) return;
+    const isView = contents !== this.mainWindow.webContents;
+    switch (shortcut.id) {
+      case "switch-account":
+        event.preventDefault();
+        this.accounts.switchToShortcut(shortcutDigit(input) ?? 0);
+        return;
+      case "next-account":
+      case "previous-account":
+        event.preventDefault();
+        this.accounts.cycle(shortcut.id === "next-account" ? 1 : -1);
+        return;
+      case "settings":
+        event.preventDefault();
+        this.openSettings();
+        return;
+      case "focus-toggle": {
+        event.preventDefault();
+        const active = this.accounts.active();
+        const view = active ? this.views.webContents(active) : null;
+        if (!isView && view && this.views.shown()) view.focus();
+        else {
+          this.mainWindow.webContents.focus();
+          this.mainWindow.webContents.send(CHANNELS.shellRequestFocusAccounts);
+        }
+        return;
+      }
+      case "zoom-in":
+      case "zoom-out":
+      case "zoom-reset":
+        event.preventDefault();
+        this.zoom(shortcut.id === "zoom-in" ? "in" : shortcut.id === "zoom-out" ? "out" : "reset");
+        return;
+      case "shortcuts":
+        event.preventDefault();
+        this.mainWindow.webContents.focus();
+        this.mainWindow.webContents.send(CHANNELS.shellRequestShortcuts);
+        return;
+      case "veil":
+        event.preventDefault();
+        this.veil.toggle();
+        return;
+      case "lock":
+        event.preventDefault();
+        this.lockNow();
+        return;
+      case "paste-plain":
+        // F13 : Chromium colle déjà en texte brut avec Ctrl+Maj+V dans un champ ; la
+        // table ne sert ici qu'à la feuille des raccourcis.
+        return;
+    }
+  }
+
+  /** F1 : zoom par compte, mémorisé, affiché brièvement dans la barre latérale. */
+  private zoom(action: "in" | "out" | "reset", accountId: string | null = this.accounts.active()): void {
+    if (!accountId) return;
+    const account = this.accounts.account(accountId);
+    if (!account) return;
+    const percent = nextZoom(account.zoomPercent, action);
+    if (percent !== account.zoomPercent) this.updateAccount(accountId, { zoomPercent: percent });
+    this.views.setZoom(accountId, percent);
+    this.zoomToast = { accountId, percent, sequence: ++this.zoomSequence };
+    this.pushState();
+  }
+
+  /** F6 : « Verrouiller maintenant » ; sans code, ouvre la section Sécurité. */
+  private lockNow(): void {
+    if (this.lock.isEnabled()) this.lock.trigger("manual");
+    else this.openSettings(undefined, "security");
   }
 
   // --- Fenêtres -------------------------------------------------------------------------------
@@ -357,7 +597,8 @@ export class Application {
     window.focus();
   }
 
-  openSettings(accountId?: string, section?: "focus"): void {
+  openSettings(accountId?: string, section?: SettingsSection): void {
+    if (this.lock.isLocked()) return;
     if (section || (accountId && this.accounts.account(accountId))) {
       this.settingsRequest = { section: section ?? "accounts", ...(accountId ? { accountId } : {}), sequence: (this.settingsRequest?.sequence ?? 0) + 1 };
     }
@@ -369,7 +610,17 @@ export class Application {
     }
     const settings = createSettingsWindow(this.options.paths, null, { devTools: this.options.devTools });
     this.settingsWindow = settings;
-    settings.webContents.on("did-finish-load", () => this.pushState());
+    settings.webContents.on("did-finish-load", () => {
+      this.applyInterfaceScale();
+      this.pushState();
+    });
+    settings.webContents.on("before-input-event", (event, input) => {
+      // Verrouiller depuis les paramètres aussi ; les autres raccourcis restent à la fenêtre principale.
+      if (input.type === "keyDown" && matchShortcut(input)?.id === "lock") {
+        event.preventDefault();
+        this.lockNow();
+      }
+    });
     settings.webContents.on("render-process-gone", () => settings.webContents.reload());
     this.settingsWindow.on("closed", () => {
       this.settingsWindow = null;
@@ -387,9 +638,20 @@ export class Application {
   private openFromNotification(id: string, webContentsId: number, notificationId: number): void {
     this.accounts.switchTo(id);
     this.showMainWindow();
+    // Verrouillé : la fenêtre s'ouvre sur l'écran de verrouillage, la conversation attendra.
+    if (this.lock.isLocked()) return;
     // La page d'origine (vue ou popup) reçoit le clic et ouvre la conversation.
     const origin = allWebContents.fromId(webContentsId);
     if (origin && !origin.isDestroyed() && this.views.accountIdFor(origin) === id) origin.send(CHANNELS.waNotificationClick, notificationId);
+  }
+
+  /** F11 : à la première connexion d'un compte, l'aide « thème de WhatsApp », une fois. */
+  private accountLinked(accountId: string): void {
+    const account = this.accounts.account(accountId);
+    if (!account || account.themeHintShown) return;
+    this.store.update("accounts", (file) => ({ ...file, accounts: file.accounts.map((candidate) => (candidate.id === accountId ? { ...candidate, themeHintShown: true } : candidate)) }));
+    // Une seule information à la fois, même si plusieurs comptes se connectent ensemble.
+    this.addNotice({ id: "theme-hint", level: "info", sticky: true, message: t("notice.themeHint", { label: account.label }) });
   }
 
   // --- Notices --------------------------------------------------------------------------------
@@ -416,14 +678,19 @@ export class Application {
   shellState(): ShellState {
     const preferences = this.store.get("preferences");
     const focus = this.store.get("focus");
-    const accounts: AccountItem[] = this.accounts.accounts().map((account, index) => this.accountItem(account, index));
+    const lock = this.lock.state();
+    const now = Date.now();
+    const accounts: AccountItem[] = this.accounts.accounts().map((account, index) => this.accountItem(account, index, now));
     const totalUnread = accounts.reduce((sum, item) => {
       const account = this.accounts.account(item.id);
       const policy = this.policy.policy(item.id);
       return account?.notifications.includeInTotal && policy?.badge ? sum + (item.unread ?? 0) : sum;
     }, 0);
-    return {
+    const media = accounts.filter((item) => item.playback).sort((a, b) => Number(b.playback?.playing) - Number(a.playback?.playing))[0];
+    const state: ShellState = {
       productName: PRODUCT_NAME,
+      language: locale(),
+      localeTag: localeTag(),
       accounts,
       activeId: this.accounts.active(),
       totalUnread,
@@ -436,13 +703,22 @@ export class Application {
       onboardingDone: preferences.onboardingDone,
       pendingLink: this.links.pendingLink(),
       notices: [...this.notices],
-      trayAvailable: this.trayAvailable
+      trayAvailable: this.trayAvailable,
+      lock,
+      veiled: this.veil.isVeiled(),
+      nowPlaying: media?.playback ? { accountId: media.id, label: media.label, ...media.playback } : null,
+      downloads: this.downloads.summary(),
+      zoomToast: this.zoomToast
     };
+    // F6 : verrouillé, l'interface ne reçoit ni les comptes ni les informations.
+    if (lock.locked) return { ...state, accounts: [], activeId: null, focus: { profiles: [], activeProfileId: null, until: null }, pendingLink: null, notices: [], nowPlaying: null, zoomToast: null };
+    return state;
   }
 
-  private accountItem(account: AccountConfig, index: number): AccountItem {
+  private accountItem(account: AccountConfig, index: number, now: number): AccountItem {
     const runtime = this.accounts.runtime(account.id);
     const policy = this.policy.policy(account.id);
+    const playback = this.playback.forAccount(account.id, now);
     return {
       id: account.id,
       label: account.label,
@@ -459,27 +735,58 @@ export class Application {
       unread: policy?.badge ? (runtime?.unread ?? null) : null,
       inCall: this.calls.inCall(account.id),
       audible: runtime?.audible ?? false,
-      memoryMB: this.resources.memoryMB(account.id)
+      memoryMB: this.resources.memoryMB(account.id),
+      zoomPercent: account.zoomPercent,
+      playback: playback ? { playing: playback.playing, kind: playback.kind, title: playback.title } : null
     };
   }
 
   settingsState(): SettingsState {
     const memory: Record<string, number | null> = {};
     for (const account of this.accounts.accounts()) memory[account.id] = this.resources.memoryMB(account.id);
+    const lock = this.store.get("security").lock;
+    const proxyAccounts: Record<string, boolean> = {};
+    for (const account of this.accounts.accounts()) proxyAccounts[account.id] = this.proxy.hasCredentials(account.id);
     return {
       productName: PRODUCT_NAME,
-      disclaimer: DISCLAIMER,
+      language: locale(),
+      localeTag: localeTag(),
+      systemLanguages: app.getPreferredSystemLanguages(),
+      disclaimer: t("common.disclaimer"),
       preferences: this.store.get("preferences"),
       accounts: this.accounts.accounts(),
       schedules: this.store.get("schedules").schedules,
       focus: this.store.get("focus"),
       trayAvailable: this.trayAvailable,
-      spellcheckLanguages: session.defaultSession.availableSpellCheckerLanguages,
+      spellcheck: {
+        available: session.defaultSession.availableSpellCheckerLanguages,
+        bundled: Object.keys(BUNDLED_DICTIONARIES),
+        systemDictionary: systemDictionary(app.getPreferredSystemLanguages()),
+        active: this.spellcheckPlan().languages
+      },
       versions: { app: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node },
       paths: { userData: app.getPath("userData"), logs: this.log.dir },
       memory,
       navigationRequest: this.settingsRequest,
-      notices: [...this.notices]
+      notices: [...this.notices],
+      downloads: this.downloads.list().map((entry) => ({
+        id: entry.id,
+        accountId: entry.accountId,
+        accountLabel: this.accounts.account(entry.accountId)?.label ?? "—",
+        fileName: entry.fileName,
+        bytes: entry.bytes,
+        state: entry.state,
+        startedAt: entry.startedAt,
+        finishedAt: entry.finishedAt ?? null,
+        missing: entry.missing,
+        progress: entry.progress
+      })),
+      security: {
+        lock: { enabled: lock.enabled, onStart: lock.onStart, onHide: lock.onHide, idleMinutes: lock.idleMinutes, onScreenLock: lock.onScreenLock },
+        secureStorage: this.proxy.secureStorage(),
+        proxyCredentials: { global: this.proxy.hasCredentials("global"), accounts: proxyAccounts }
+      },
+      proxyTests: { ...this.proxyTests }
     };
   }
 
@@ -491,30 +798,37 @@ export class Application {
       if (this.mainWindow.isDestroyed()) return;
       const state = this.shellState();
       this.mainWindow.webContents.send(CHANNELS.shellState, state);
-      this.settingsWebContents()?.send(CHANNELS.settingsState, this.settingsState());
+      if (!this.lock.isLocked()) this.settingsWebContents()?.send(CHANNELS.settingsState, this.settingsState());
       this.updateBadge(state);
       // §21 : le menu du tray n'est reconstruit que si son contenu change (un menu
       // ouvert se refermerait sinon sur certains bureaux).
       const menu = trayMenu(state, new Date());
-      const signature = JSON.stringify(menu) + state.totalUnread;
+      const icon = trayIconName(state.lock.locked ? 0 : state.totalUnread, this.store.get("preferences").trayCountStyle);
+      const signature = JSON.stringify(menu) + state.totalUnread + icon;
       if (this.tray && signature !== this.traySignature) {
         this.traySignature = signature;
-        this.tray.update(menu, state.totalUnread, (action) => this.dispatchMenuAction(action));
+        this.tray.update(menu, state.lock.locked ? 0 : state.totalUnread, icon, (action) => this.dispatchMenuAction(action));
       }
     }, 30);
   }
 
   private updateBadge(state: ShellState): void {
-    app.setBadgeCount(state.totalUnread);
-    this.mainWindow.setTitle(state.totalUnread > 0 ? `(${state.totalUnread}) ${PRODUCT_NAME}` : PRODUCT_NAME);
+    const total = state.lock.locked ? 0 : state.totalUnread;
+    app.setBadgeCount(total);
+    this.mainWindow.setTitle(total > 0 ? `(${total}) ${PRODUCT_NAME}` : PRODUCT_NAME);
   }
 
-  /** §12 : son de la page coupé pour un compte en Snooze caché, jamais pendant un appel. */
+  /** §12, F14 : son coupé pour un compte en Snooze caché, sauf appel ou lecture lancée par l'utilisateur. */
   private applyAudio(): void {
     const shown = this.views.shown();
+    const now = Date.now();
     for (const id of this.views.ids()) {
       const policy = this.policy.policy(id);
-      this.views.setMuted(id, Boolean(policy?.muteAudioWhenHidden) && id !== shown && !this.calls.inCall(id));
+      const playback = this.playback.forAccount(id, now);
+      this.views.setMuted(
+        id,
+        shouldMute({ muteWhenHidden: Boolean(policy?.muteAudioWhenHidden), shown: id === shown, inCall: this.calls.inCall(id), userPlayback: Boolean(playback?.playing && playback.userStarted) })
+      );
     }
   }
 
@@ -522,6 +836,10 @@ export class Application {
 
   async handleCommand(command: Command): Promise<void> {
     this.log.debug("command", { type: command.type });
+    if (this.lock.isLocked() && !ALLOWED_WHILE_LOCKED.has(command.type)) {
+      this.log.warn("command-refused-locked", { type: command.type });
+      return;
+    }
     switch (command.type) {
       case "add-account":
         this.accounts.add({ label: command.label, ...(command.color ? { color: command.color } : {}), ...(command.icon ? { icon: command.icon } : {}) });
@@ -531,7 +849,7 @@ export class Application {
         this.accounts.switchTo(command.id);
         return;
       case "sleep-account":
-        if (!this.accounts.sleep(command.id)) this.addNotice({ id: `sleep-${command.id}`, level: "info", message: "Impossible de mettre ce compte en veille pendant un appel." });
+        if (!this.accounts.sleep(command.id)) this.addNotice({ id: `sleep-${command.id}`, level: "info", message: t("notice.sleepRefusedInCall") });
         return;
       case "wake-account":
         this.accounts.wake(command.id);
@@ -540,7 +858,7 @@ export class Application {
         this.accounts.reload(command.id);
         return;
       case "remove-account":
-        await this.accounts.remove(command.id);
+        await this.removeAccount(command.id);
         return;
       case "request-remove-account":
         await this.confirmRemove(command.id, this.settingsWindow ?? this.mainWindow);
@@ -580,7 +898,7 @@ export class Application {
         return;
       }
       case "open-settings":
-        this.openSettings(command.accountId);
+        this.openSettings(command.accountId, command.section);
         return;
       case "update-account":
         this.updateAccount(command.id, command.patch);
@@ -590,7 +908,7 @@ export class Application {
         const ses = this.sessionFor(command.id);
         await ses.clearCache();
         await ses.clearStorageData({ storages: ["cachestorage", "shadercache"] });
-        this.addNotice({ id: `cache-${command.id}`, level: "info", message: "Cache vidé. La session WhatsApp est conservée." });
+        this.addNotice({ id: `cache-${command.id}`, level: "info", message: t("notice.cacheCleared") });
         return;
       }
       case "set-preferences":
@@ -617,7 +935,7 @@ export class Application {
         return;
       case "request-delete-schedule": {
         const schedule = this.store.get("schedules").schedules.find((item) => item.id === command.id);
-        if (schedule && await this.confirmSettingsDelete("Supprimer l’horaire", schedule.name, "Les comptes associés n’utiliseront plus cet horaire.")) {
+        if (schedule && await this.confirmSettingsDelete(t("dialog.deleteScheduleTitle"), schedule.name, t("dialog.deleteScheduleDetail"))) {
           await this.handleCommand({ type: "delete-schedule", id: command.id });
         }
         return;
@@ -639,7 +957,7 @@ export class Application {
         return;
       case "request-delete-focus-profile": {
         const profile = this.store.get("focus").profiles.find((item) => item.id === command.id);
-        if (profile && await this.confirmSettingsDelete("Supprimer le Focus", profile.name, "Ce Focus ne sera plus disponible. S’il est actif, il sera désactivé.")) {
+        if (profile && await this.confirmSettingsDelete(t("dialog.deleteFocusTitle"), profile.name, t("dialog.deleteFocusDetail"))) {
           await this.handleCommand({ type: "delete-focus-profile", id: command.id });
         }
         return;
@@ -650,10 +968,82 @@ export class Application {
       case "open-logs":
         void shell.openPath(this.log.dir);
         return;
+      case "zoom":
+        this.zoom(command.action, command.id ?? this.accounts.active());
+        return;
+      case "media-control":
+        this.mediaControl(command.id, command.action);
+        return;
+      case "download-open":
+        await this.downloads.open(command.id);
+        return;
+      case "download-show":
+        this.downloads.show(command.id);
+        return;
+      case "download-remove":
+        this.downloads.remove(command.id);
+        return;
+      case "downloads-clear":
+        this.downloads.clear();
+        return;
+      case "create-diagnostic-report":
+        this.createDiagnosticReport();
+        return;
+      case "report-problem":
+        this.reportProblem();
+        return;
+      case "lock-now":
+        this.lockNow();
+        return;
+      case "unlock":
+        await this.lock.unlock(command.code);
+        return;
+      case "forgot-lock-code":
+        await this.forgotLockCode();
+        return;
+      case "set-lock-code": {
+        const result = await this.lock.setCode(command.current, command.next);
+        const wasEnabled = command.current !== null;
+        if (result === "ok") this.addNotice({ id: "lock", level: "info", message: t(wasEnabled ? "notice.lockCodeChanged" : "notice.lockEnabled") });
+        else if (result === "wrong-current") this.addNotice({ id: "lock", level: "error", message: t("notice.lockWrongCurrent") });
+        else this.addNotice({ id: "lock", level: "error", message: t("lock.tooShort") });
+        return;
+      }
+      case "disable-lock": {
+        const result = await this.lock.disable(command.current);
+        this.addNotice(result === "ok" ? { id: "lock", level: "info", message: t("notice.lockDisabled") } : { id: "lock", level: "error", message: t("notice.lockWrongCurrent") });
+        return;
+      }
+      case "set-lock-options":
+        this.lock.setOptions(command.options);
+        return;
+      case "toggle-veil":
+        this.veil.toggle();
+        return;
+      case "set-proxy-credentials": {
+        if (command.scope !== "global" && !this.accounts.account(command.scope)) return;
+        const result = this.proxy.setCredentials(command.scope, { username: command.username, password: command.password });
+        this.addNotice({ id: `proxy-credentials-${command.scope}`, level: "info", message: t(result === "saved" ? "proxy.credentialsSaved" : "proxy.credentialsMemory") });
+        return;
+      }
+      case "clear-proxy-credentials":
+        this.proxy.clearCredentials(command.scope);
+        this.pushState();
+        return;
+      case "test-proxy":
+        await this.testProxy(command.scope);
+        return;
     }
   }
 
+  private async removeAccount(id: string): Promise<void> {
+    await this.accounts.remove(id);
+    this.proxy.forgetAccount(id);
+    this.downloads.forgetAccount(id);
+  }
+
   private updateAccount(id: string, patch: AccountPatch): void {
+    const before = this.accounts.account(id);
     this.store.update("accounts", (file) => ({
       ...file,
       accounts: file.accounts.map((account) => {
@@ -674,46 +1064,184 @@ export class Application {
           if (patch.autoSleepAfterMinutes === null) delete next.autoSleepAfterMinutes;
           else next.autoSleepAfterMinutes = patch.autoSleepAfterMinutes;
         }
+        if (patch.zoomPercent !== undefined) next.zoomPercent = patch.zoomPercent;
+        if (patch.permissions) next.permissions = { ...account.permissions, ...patch.permissions };
+        if (patch.proxy !== undefined) next.proxy = patch.proxy;
+        if (patch.proxyMode !== undefined) next.proxyMode = patch.proxyMode === "manual" && !next.proxy ? account.proxyMode : patch.proxyMode;
         return next;
       })
     }));
+    const after = this.accounts.account(id);
+    if (!before || !after) return;
+    if (after.zoomPercent !== before.zoomPercent) this.views.setZoom(id, after.zoomPercent);
+    if (after.proxyMode !== before.proxyMode || JSON.stringify(after.proxy) !== JSON.stringify(before.proxy)) {
+      // Identifiants liés au serveur : un autre proxy ne reçoit jamais ceux du précédent.
+      if (before.proxy && !sameServer(before.proxy, after.proxy)) this.proxy.clearCredentials(id);
+      void this.proxy.applyAll();
+      delete this.proxyTests[id];
+    }
   }
 
   private setPreferences(patch: PreferencesPatch): void {
     const previous = this.store.get("preferences");
-    this.store.update("preferences", (current) => ({ ...current, ...patch }));
+    this.store.update("preferences", (current) => ({
+      ...current,
+      ...patch,
+      privacyVeil: { ...current.privacyVeil, ...patch.privacyVeil }
+    }));
     const next = this.store.get("preferences");
     if (next.theme !== previous.theme) nativeTheme.themeSource = next.theme;
+    if (next.language !== previous.language) {
+      this.applyLocale();
+      this.settingsWindow?.setTitle(t("window.settingsTitle", { product: PRODUCT_NAME }));
+    }
     // Échec (dossier non accessible, portail refusé…) : on revient en arrière et on le dit.
     if (next.launchAtLogin !== previous.launchAtLogin) {
       void setLaunchAtLogin(next.launchAtLogin, this.log).then((ok) => {
         if (ok) return;
         this.store.update("preferences", (current) => ({ ...current, launchAtLogin: previous.launchAtLogin }));
-        this.addNotice({ id: "autostart", level: "error", message: "Impossible de modifier le lancement à l’ouverture de session (voir le journal)." });
+        this.addNotice({ id: "autostart", level: "error", message: t("notice.autostartFailed") });
       });
     }
     if (next.handleWhatsappLinks !== previous.handleWhatsappLinks) {
       void setWhatsappLinkHandler(next.handleWhatsappLinks, this.log).then((ok) => {
         if (ok) return;
         this.store.update("preferences", (current) => ({ ...current, handleWhatsappLinks: previous.handleWhatsappLinks }));
-        this.addNotice({ id: "link-handler", level: "error", message: "Impossible de modifier le gestionnaire des liens whatsapp:// (voir le journal)." });
+        this.addNotice({ id: "link-handler", level: "error", message: t("notice.linkHandlerFailed") });
       });
     }
-    if (next.spellcheckLanguages.join() !== previous.spellcheckLanguages.join()) {
-      for (const account of this.accounts.accounts()) applySpellcheck(this.sessionFor(account.id), next.spellcheckLanguages);
+    if (next.spellcheckMode !== previous.spellcheckMode || next.spellcheckLanguages.join() !== previous.spellcheckLanguages.join()) {
+      const plan = this.spellcheckPlan();
+      for (const account of this.accounts.accounts()) applySpellcheck(this.sessionFor(account.id), plan);
     }
     if (next.sidebarCollapsed !== previous.sidebarCollapsed) this.views.relayout();
+    if (next.interfaceScale !== previous.interfaceScale) this.applyInterfaceScale();
+    if (next.downloadsHistoryDays !== previous.downloadsHistoryDays) this.downloads.applyRetention();
+    if (JSON.stringify(next.privacyVeil) !== JSON.stringify(previous.privacyVeil)) this.veil.applyAll();
+    if (JSON.stringify(next.proxy) !== JSON.stringify(previous.proxy)) {
+      if (previous.proxy.server && !sameServer(previous.proxy.server, next.proxy.server)) this.proxy.clearCredentials("global");
+      void this.proxy.applyAll();
+      delete this.proxyTests.global;
+    }
+  }
+
+  /** F14 : Pause / Reprendre, envoyé à la page qui lit. */
+  private mediaControl(accountId: string, action: "pause" | "play"): void {
+    const playback = this.playback.forAccount(accountId, Date.now());
+    if (!playback) return;
+    const page = allWebContents.fromId(playback.webContentsId);
+    if (page && !page.isDestroyed()) page.send(CHANNELS.waMediaControl, action);
+  }
+
+  /** F3 : rapport écrit dans Téléchargements, puis dossier affiché ; rien n'est envoyé. */
+  private createDiagnosticReport(): void {
+    try {
+      const preferences = this.store.get("preferences");
+      const { proxy: _proxy, ...shareable } = preferences;
+      const proxyHosts = [preferences.proxy.server?.host ?? "", ...this.accounts.accounts().map((account) => account.proxy?.host ?? "")].filter(Boolean);
+      const display = screen.getPrimaryDisplay();
+      const file = writeReport({
+        product: PRODUCT_NAME,
+        versions: { app: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node, locale: localeTag() },
+        build: this.buildInfo(),
+        system: systemInfo({ ozone: app.commandLine.getSwitchValue("ozone-platform") || "auto", scaleFactor: display.scaleFactor, tray: this.trayAvailable, secureStorage: this.proxy.secureStorage() }),
+        accounts: this.accounts.accounts().map((account) => {
+          const runtime = this.accounts.runtime(account.id);
+          const proxy = this.proxy.effective(account.id);
+          return {
+            label: account.label,
+            lifecycle: account.sleeping ? "sleeping" : (runtime?.lifecycle ?? "loading"),
+            mode: this.policy.policy(account.id)?.mode ?? "normal",
+            sleeping: account.sleeping,
+            adapterDegraded: runtime?.adapterDegraded ?? false,
+            inCall: this.calls.inCall(account.id),
+            memoryMB: this.resources.memoryMB(account.id),
+            proxy: proxy.mode === "fixed" ? `${proxy.server.type}${proxy.server.auth ? "+auth" : ""}` : proxy.mode
+          };
+        }),
+        preferences: shareable,
+        logFile: path.join(this.log.dir, "app.log"),
+        proxyHosts,
+        directory: app.getPath("downloads"),
+        now: new Date()
+      });
+      this.log.info("diagnostic-report", { file: path.basename(file) });
+      this.addNotice({ id: "report", level: "info", message: t("notice.reportCreated", { file: path.basename(file) }) });
+      if (this.probe) this.probe.opened.push({ action: "show", file });
+      else shell.showItemInFolder(file);
+    } catch (error) {
+      this.log.error("diagnostic-report-failed", error);
+      this.addNotice({ id: "report", level: "error", message: t("notice.reportFailed") });
+    }
+  }
+
+  private buildInfo(): unknown {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(this.options.paths.rendererDir, "..", "build-info.json"), "utf8"));
+    } catch {
+      return null;
+    }
+  }
+
+  /** F3 : ouvre la page des tickets avec un titre prérempli ; l'utilisateur joint le rapport. */
+  private reportProblem(): void {
+    const body = `Version ${app.getVersion()} · Electron ${process.versions.electron} · ${process.env.XDG_CURRENT_DESKTOP ?? "?"} ${process.env.XDG_SESSION_TYPE ?? ""}`.trim();
+    const url = `${ISSUES_URL}?title=${encodeURIComponent(t("report.issueTitle"))}&body=${encodeURIComponent(body)}`;
+    if (this.probe) this.probe.external.push(url);
+    else void shell.openExternal(url);
+  }
+
+  /** F6 : sans le code, effacer toutes les sessions est la seule façon de déverrouiller. */
+  private async forgotLockCode(): Promise<void> {
+    if (!this.lock.isLocked()) return;
+    const { response } = await dialog.showMessageBox(this.mainWindow, {
+      type: "warning",
+      title: t("lock.resetTitle"),
+      message: t("lock.resetMessage"),
+      detail: t("lock.resetDetail"),
+      buttons: [t("common.cancel"), t("lock.resetConfirm")],
+      defaultId: 0,
+      cancelId: 0
+    });
+    if (response !== 1) return;
+    // D'abord effacer : rien ne doit redevenir lisible avant que les sessions aient disparu.
+    // Un effacement en échec laisse le verrou en place.
+    if (!(await this.accounts.resetAllSessions())) {
+      await dialog.showMessageBox(this.mainWindow, { type: "error", title: t("lock.resetTitle"), message: t("lock.resetFailed"), buttons: [t("common.close")] });
+      return;
+    }
+    // L'historique des téléchargements (noms de fichiers) disparaît avec les sessions.
+    this.downloads.clearAll();
+    this.lock.removeLock();
+    this.addNotice({ id: "lock-reset", level: "warning", message: t("notice.lockReset") });
+  }
+
+  /** F9 : test de la route vers WhatsApp, pour le réglage global ou un compte. */
+  private async testProxy(scope: "global" | string): Promise<void> {
+    const accountId = scope === "global" ? this.accounts.accounts().find((account) => account.proxyMode === "inherit")?.id : scope;
+    this.proxyTests[scope] = { ok: false, route: "", running: true };
+    this.pushState();
+    let result: ProxyTestResult;
+    if (accountId && this.accounts.account(accountId)) {
+      result = await this.proxy.test(accountId, this.options.targetUrl);
+    } else {
+      result = { ok: false, route: "", error: t("accounts.empty") };
+    }
+    this.proxyTests[scope] = result;
+    this.pushState();
   }
 
   private popup(items: MenuItemModel[], x: number, y: number): void {
     Menu.buildFromTemplate(toElectronMenu(items, (action) => this.dispatchMenuAction(action))).popup({
       window: this.mainWindow,
-      x: Math.round(x),
-      y: Math.round(y)
+      x: Math.round(x * this.interfaceScale()),
+      y: Math.round(y * this.interfaceScale())
     });
   }
 
   dispatchMenuAction(action: MenuAction): void {
+    // Verrouillé : seuls « Afficher » (l'écran de verrouillage) et « Quitter ».
+    if (this.lock.isLocked() && action.type !== "show" && action.type !== "quit") return;
     switch (action.type) {
       case "show":
         this.showMainWindow();
@@ -758,6 +1286,15 @@ export class Application {
       case "focus":
         this.policy.activateFocus(action.profileId, action.minutes);
         return;
+      case "lock":
+        this.lockNow();
+        return;
+      case "media":
+        this.mediaControl(action.id, action.action);
+        return;
+      case "report":
+        this.createDiagnosticReport();
+        return;
     }
   }
 
@@ -766,21 +1303,20 @@ export class Application {
     if (!account) return;
     const { response } = await dialog.showMessageBox(parent, {
       type: "warning",
-      buttons: ["Annuler", "Supprimer"],
+      buttons: [t("common.cancel"), t("common.delete")],
       defaultId: 0,
       cancelId: 0,
-      title: "Supprimer le compte",
-      message: `Supprimer « ${account.label} » ?`,
-      detail:
-        "La session et les données locales de ce compte seront effacées. Pensez aussi à retirer l’appareil depuis votre téléphone : WhatsApp → Appareils connectés."
+      title: t("dialog.removeAccountTitle"),
+      message: t("dialog.removeMessage", { name: account.label }),
+      detail: t("dialog.removeAccountDetail")
     });
-    if (response === 1) await this.accounts.remove(id);
+    if (response === 1) await this.removeAccount(id);
   }
 
   private async confirmSettingsDelete(title: string, name: string, detail: string): Promise<boolean> {
     const { response } = await dialog.showMessageBox(this.settingsWindow ?? this.mainWindow, {
-      type: "warning", title, message: `Supprimer « ${name} » ?`, detail,
-      buttons: ["Annuler", "Supprimer"], defaultId: 0, cancelId: 0
+      type: "warning", title, message: t("dialog.removeMessage", { name }), detail,
+      buttons: [t("common.cancel"), t("common.delete")], defaultId: 0, cancelId: 0
     });
     return response === 1;
   }
@@ -793,7 +1329,7 @@ export class Application {
   }
 
   /** Message d'une vue WhatsApp : compte déduit de l'expéditeur, jamais du message. */
-  private whatsappSender(event: IpcMainEvent): string | null {
+  private whatsappSender(event: IpcMainEvent | IpcMainInvokeEvent): string | null {
     const id = this.views.accountIdFor(event.sender);
     if (!id) return null;
     const frame = event.senderFrame;
@@ -806,7 +1342,7 @@ export class Application {
 
   private registerIpc(): void {
     ipcMain.handle(CHANNELS.shellGetState, (event) => (this.isOwnRenderer(event) ? this.shellState() : null));
-    ipcMain.handle(CHANNELS.settingsGetState, (event) => (this.isOwnRenderer(event) ? this.settingsState() : null));
+    ipcMain.handle(CHANNELS.settingsGetState, (event) => (this.isOwnRenderer(event) && !this.lock.isLocked() ? this.settingsState() : null));
     ipcMain.on(CHANNELS.command, (event, raw: unknown) => {
       if (!this.isOwnRenderer(event)) return;
       const parsed = CommandSchema.safeParse(raw);
@@ -816,14 +1352,14 @@ export class Application {
       }
       this.handleCommand(parsed.data).catch((error: unknown) => {
         this.log.error("command-failed", error);
-        this.addNotice({ id: `command-${parsed.data.type}`, level: "error", message: `Action impossible : ${(error as Error).message}` });
+        this.addNotice({ id: `command-${parsed.data.type}`, level: "error", message: t("notice.commandFailed", { message: (error as Error).message }) });
       });
     });
 
     ipcMain.on(CHANNELS.waNotify, (event, raw: unknown) => {
       const id = this.whatsappSender(event);
       const parsed = NotifyPayloadSchema.safeParse(raw);
-      if (id && parsed.success) this.notifications.handle(id, event.sender.id, parsed.data);
+      if (id && parsed.success) void this.notifications.handle(id, event.sender.id, parsed.data);
     });
     ipcMain.on(CHANNELS.waNotificationClose, (event, raw: unknown) => {
       const id = this.whatsappSender(event);
@@ -859,6 +1395,38 @@ export class Application {
       if (!id || !parsed.success || !this.views.isMainView(id, event.sender)) return;
       if (this.probe) this.probe.visibility[id] = parsed.data.state;
       if (parsed.data.state === "visible" && id !== this.views.shown()) this.log.warn("hidden-account-visible", { id });
+    });
+    // F14 : lecture d'un média ; « une seule lecture à la fois » en option.
+    ipcMain.on(CHANNELS.waMediaPlayback, (event, raw: unknown) => {
+      const id = this.whatsappSender(event);
+      const parsed = PlaybackPayloadSchema.safeParse(raw);
+      if (!id || !parsed.success) return;
+      const started = this.playback.report(id, event.sender.id, parsed.data, Date.now());
+      if (started && this.store.get("preferences").exclusivePlayback) {
+        for (const pageId of this.playback.playingPagesExcept(id)) allWebContents.fromId(pageId)?.send(CHANNELS.waMediaControl, "pause");
+      }
+      this.applyAudio();
+      this.pushState();
+    });
+    ipcMain.handle(CHANNELS.waLabels, (event) => (this.whatsappSender(event) ? { voiceMessage: t("media.voiceMessage"), video: t("media.video"), product: PRODUCT_NAME } : null));
+    // F7 : survol ou clic dans une vue voilée ; auto-test du flou des messages.
+    // Seule la page que l'utilisateur voit peut dévoiler : la vue affichée, ou une popup au premier plan.
+    ipcMain.on(CHANNELS.waVeilReveal, (event, raw: unknown) => {
+      const parsed = VeilRevealPayloadSchema.safeParse(raw);
+      const id = this.whatsappSender(event);
+      if (!id || !parsed.success) return;
+      const shownView = id === this.views.shown() && this.views.isMainView(id, event.sender);
+      const focusedPopup = !this.views.isMainView(id, event.sender) && BrowserWindow.fromWebContents(event.sender)?.isFocused() === true;
+      if (shownView || focusedPopup) this.veil.reveal(parsed.data.kind);
+    });
+    ipcMain.on(CHANNELS.waAdapterCheck, (event, raw: unknown) => {
+      const id = this.whatsappSender(event);
+      const parsed = AdapterCheckPayloadSchema.safeParse(raw);
+      if (!id || !parsed.success) return;
+      if (!parsed.data.messageBlur) this.log.warn("adapter-message-blur-unmatched", { id });
+      if (this.veil.adapterCheck(event.sender, parsed.data.messageBlur) && this.store.get("preferences").privacyVeil.blurMessages) {
+        this.addNotice({ id: `blur-${id}`, level: "warning", message: t("notice.blurUnavailable", { label: this.accounts.account(id)?.label ?? t("common.anAccount") }) });
+      }
     });
   }
 

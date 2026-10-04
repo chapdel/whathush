@@ -22,7 +22,10 @@ async function run(script) {
       WHATHUSH_TEST: "1",
       WHATHUSH_TARGET_URL: fake.url,
       WHATHUSH_USER_DATA: userData,
-      WHATHUSH_TRAY: "0"
+      WHATHUSH_TRAY: "0",
+      LANGUAGE: "fr_FR:fr",
+      LANG: "fr_FR.UTF-8",
+      LC_ALL: ""
     }
   });
   let output = "";
@@ -44,6 +47,9 @@ const visibility = await run("visibility-check.cjs");
 check("compte affiché A : page visible, B caché : hidden", visibility.afterA.a === "visible" && visibility.afterA.b === "hidden", visibility.afterA);
 check("après bascule : A hidden, B visible", visibility.afterB.a === "hidden" && visibility.afterB.b === "visible", visibility.afterB);
 check("pendant une modale : toutes les pages hidden", visibility.duringModal.a === "hidden" && visibility.duringModal.b === "hidden", visibility.duringModal);
+check("après la modale : B de nouveau visible", visibility.afterModal.b === "visible" && visibility.afterModal.a === "hidden", visibility.afterModal);
+check("verrouillé (F6) : toutes les pages hidden", visibility.duringLock.a === "hidden" && visibility.duringLock.b === "hidden", visibility.duringLock);
+check("déverrouillé : B de nouveau visible", visibility.afterUnlock.b === "visible" && visibility.afterUnlock.a === "hidden", visibility.afterUnlock);
 
 for (const { name, ok, detail } of checks) console.log(`${ok ? "✔" : "✘"} ${name}  ${JSON.stringify(detail)}`);
 process.exit(checks.every((entry) => entry.ok) ? 0 : 1);

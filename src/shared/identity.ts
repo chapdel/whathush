@@ -12,4 +12,5 @@ export const CODENAME = "Whatsapp";
 export const EXECUTABLE_NAME = "whathush";
 export const APP_ID = "io.github.chapdel.mcdesk";
 export const DATA_DIR_NAME = "mcdesk";
-export const DISCLAIMER = "Projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms.";
+/** Page des tickets (F3), provisoire comme APP_ID tant que le dépôt n'est pas confirmé. */
+export const ISSUES_URL = "https://github.com/chapdel/whathush/issues/new";

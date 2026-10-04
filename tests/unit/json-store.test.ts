@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { addAccount } from "../../src/main/core/accounts";
-import { accountsDocument } from "../../src/main/storage/documents";
+import { accountsDocument, preferencesDocument } from "../../src/main/storage/documents";
 import { readJsonDocument, writeJsonDocument, type JsonDocument } from "../../src/main/storage/json-store";
 
 let dir: string;
@@ -33,7 +33,7 @@ describe("readJsonDocument / writeJsonDocument", () => {
   });
 
   it("refuse d'écrire des données invalides", () => {
-    const invalid = { ...accountsDocument.defaults(), schemaVersion: 2 } as unknown as ReturnType<typeof accountsDocument.defaults>;
+    const invalid = { ...accountsDocument.defaults(), schemaVersion: 3 } as unknown as ReturnType<typeof accountsDocument.defaults>;
     expect(() => writeJsonDocument(file, accountsDocument, invalid)).toThrow();
     expect(fs.existsSync(file)).toBe(false);
   });
@@ -91,5 +91,84 @@ describe("migrations", () => {
     const result = readJsonDocument(file, broken);
     expect(result.status).toBe("corrupt");
     if (result.status === "corrupt") expect(result.error).toContain("schemaVersion");
+  });
+});
+
+// Fichiers v1 réels, tels qu'écrits par la version 0.1.0 (plan complémentaire, §2.1).
+describe("migration v1 → v2 des fichiers de l'application", () => {
+  const V1_ACCOUNTS = {
+    schemaVersion: 1,
+    accounts: [
+      {
+        id: "4f0c1d2e-3b4a-4c5d-8e6f-7a8b9c0d1e2f",
+        label: "Travail",
+        color: "#5a5fc4",
+        icon: "briefcase",
+        order: 0,
+        partition: "persist:wa-4f0c1d2e-3b4a-4c5d-8e6f-7a8b9c0d1e2f",
+        notifications: { enabled: true, sound: true, showPreview: false, badge: true, includeInTotal: true, badgeWhileSnoozed: true },
+        manualOverride: { mode: "snoozed", until: null },
+        sleeping: false,
+        createdAt: "2026-10-04T08:00:00.000Z",
+        lastOpenedAt: "2026-10-04T09:00:00.000Z"
+      }
+    ],
+    pendingPartitionDeletion: []
+  };
+  const V1_PREFERENCES = {
+    schemaVersion: 1,
+    launchAtLogin: false,
+    closeToTray: true,
+    startMinimized: false,
+    theme: "dark",
+    spellcheckLanguages: ["fr"],
+    handleWhatsappLinks: false,
+    sidebarCollapsed: true,
+    askDownloadLocation: false,
+    onboardingDone: true
+  };
+
+  it("ajoute zoom, permissions, proxy et aide du thème à chaque compte, sans rien perdre", () => {
+    fs.writeFileSync(file, JSON.stringify(V1_ACCOUNTS));
+    const result = readJsonDocument(file, accountsDocument);
+    expect(result.status).toBe("migrated");
+    expect(result.data.schemaVersion).toBe(2);
+    expect(result.data.accounts[0]).toEqual({
+      ...V1_ACCOUNTS.accounts[0],
+      zoomPercent: 100,
+      permissions: { microphone: "allow", camera: "allow", location: "deny", screenShare: "ask" },
+      proxyMode: "inherit",
+      proxy: null,
+      themeHintShown: true
+    });
+  });
+
+  it("garde le français et le correcteur déjà choisi d'une installation existante", () => {
+    const prefs = path.join(dir, "preferences.json");
+    fs.writeFileSync(prefs, JSON.stringify(V1_PREFERENCES));
+    const result = readJsonDocument(prefs, preferencesDocument);
+    expect(result.status).toBe("migrated");
+    expect(result.data).toMatchObject({
+      ...V1_PREFERENCES,
+      schemaVersion: 2,
+      language: "fr",
+      interfaceScale: 100,
+      spellcheckMode: "custom",
+      downloadsHistoryDays: 30,
+      privacyVeil: { onBlur: false, onScreenShare: false, blurMessages: false },
+      proxy: { mode: "system", server: null },
+      trayCountStyle: "number",
+      exclusivePlayback: false
+    });
+  });
+
+  it("désactive le correcteur migré si aucune langue n'était choisie", () => {
+    const prefs = path.join(dir, "preferences.json");
+    fs.writeFileSync(prefs, JSON.stringify({ ...V1_PREFERENCES, spellcheckLanguages: [] }));
+    expect(readJsonDocument(prefs, preferencesDocument).data.spellcheckMode).toBe("off");
+  });
+
+  it("une installation neuve suit la langue du système", () => {
+    expect(preferencesDocument.defaults().language).toBe("system");
   });
 });

@@ -4,6 +4,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { t } from "../shared/i18n";
 import type { Logger } from "./log";
 
 export async function checkAppImageUpdates(log: Logger, notify: (message: string) => void): Promise<void> {
@@ -17,7 +18,7 @@ export async function checkAppImageUpdates(log: Logger, notify: (message: string
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on("update-downloaded", (info) => {
     log.info("update-downloaded", { version: info.version });
-    notify(`La version ${info.version} sera installée à la prochaine fermeture de l’application.`);
+    notify(t("notice.updateReady", { version: info.version }));
   });
   autoUpdater.on("error", (error) => log.warn("update-error", { message: error.message }));
   await autoUpdater.checkForUpdates();

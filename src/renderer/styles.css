@@ -311,3 +311,75 @@ kbd { font: inherit; font-size: var(--font-meta); color: var(--muted); margin-le
 .settings-notices { position: sticky; top: 0; display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: var(--space-5); background: var(--surface); z-index: 1; }
 
 .hint-list { margin: 0; padding-left: 18px; display: grid; gap: var(--space-1); }
+
+/* Listes de valeurs choisies (langues du correcteur…). */
+.spellcheck-languages { flex-wrap: wrap; justify-content: flex-start; }
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); flex: 1 1 100%; }
+.chip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-small); padding: 0 var(--space-1) 0 var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--font-control); }
+.chip .icon-btn { width: 22px; height: 22px; }
+.tag { font-size: var(--font-meta); color: var(--muted); }
+.tag-warn { color: var(--warning); }
+
+/* F1 : touches des raccourcis et feuille des raccourcis. */
+.keys { display: inline-flex; gap: var(--space-1); flex-wrap: wrap; }
+.keys kbd { margin: 0; min-width: 24px; padding: 1px var(--space-2); border-radius: var(--radius-xs); border: 1px solid var(--border-strong); border-bottom-width: 2px; background: var(--surface); color: var(--text); font-size: var(--font-meta); text-align: center; }
+.shortcut-list { margin: 0; display: grid; gap: 0; }
+.shortcut-list > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+.shortcut-list > div:last-child { border-bottom: none; }
+.shortcut-list dt { font-size: var(--font-control); }
+.shortcut-list dd { margin: 0; flex: none; }
+.zoom-toast { align-self: center; padding: var(--space-1) var(--space-4); border-radius: var(--radius); background: var(--text); color: var(--surface); font-size: var(--font-meta); font-variant-numeric: tabular-nums; }
+
+/* F7 : bouton du voile, enfoncé quand les conversations sont voilées. */
+.icon-btn.pressed { background: var(--accent-soft); color: var(--accent); }
+
+/* F14 : lecture en cours, en pied de barre latérale. */
+.now-playing { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--accent-soft); }
+.now-playing-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.now-playing-text strong { font-size: var(--font-meta); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-playing-text small { font-size: var(--font-meta); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-playing .icon-btn:hover { background: var(--surface); }
+.now-playing-compact { align-self: center; background: var(--accent-soft); color: var(--accent); }
+
+/* F2 : téléchargements en cours. */
+.downloads-indicator { position: relative; overflow: hidden; }
+.downloads-indicator > span:not(.progress) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-meta); }
+.downloads-indicator .progress { position: absolute; left: var(--space-3); right: var(--space-3); bottom: 3px; height: 2px; border-radius: 1px; background: var(--border); }
+.downloads-indicator .progress > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width var(--motion-control); }
+.icon-btn.downloads-indicator { align-self: center; }
+.icon-btn.downloads-indicator .progress { left: 4px; right: 4px; bottom: 1px; }
+
+/* F6 : écran de verrouillage, toute la fenêtre. */
+.lock-screen { height: 100%; display: flex; align-items: center; justify-content: center; padding: var(--space-8); background: var(--bg); overflow: auto; }
+.lock-panel { width: min(320px, 100%); display: flex; flex-direction: column; align-items: center; gap: var(--space-4); text-align: center; }
+.lock-panel h1 { margin: 0; font-size: var(--font-title); }
+.lock-panel > p { margin: 0; color: var(--muted); }
+.lock-input { text-align: center; font-size: var(--font-section); letter-spacing: .2em; }
+.lock-status { min-height: 1.5em; font-size: var(--font-control); color: var(--muted); }
+.lock-status.error { color: var(--danger); }
+.keypad { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+.keypad .btn { min-height: 44px; font-size: var(--font-section); font-variant-numeric: tabular-nums; }
+.link-button { border: 0; background: transparent; color: var(--muted); font-size: var(--font-control); text-decoration: underline; text-underline-offset: 3px; padding: var(--space-2); }
+.link-button:hover { color: var(--text); }
+
+/* Paramètres : listes de lignes avec actions (téléchargements). */
+.entries { list-style: none; margin: 0; padding: 0; }
+.entry { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
+.entry:last-child { border-bottom: none; }
+.entry-icon { color: var(--muted); display: inline-flex; }
+.entry-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
+.entry-text strong { font-weight: 500; font-size: var(--font-control); overflow-wrap: anywhere; }
+.entry-text small { color: var(--muted); font-size: var(--font-meta); }
+.entry-text small.warn { color: var(--warning); }
+.entry-actions { display: flex; gap: var(--space-1); flex: none; }
+.form-row { display: grid; grid-template-columns: 140px minmax(0, 1fr) 110px; gap: var(--space-3); align-items: end; }
+@media (max-width: 800px) { .form-row { grid-template-columns: minmax(0, 1fr); } }
+.status-ok { color: var(--success); }
+.status-error { color: var(--danger); }
+.callout { margin: 0 0 var(--space-5); padding: var(--space-3) var(--space-4); border-left: 3px solid var(--warning); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--warning-soft); font-size: var(--font-control); line-height: 1.5; }
+.form-row.credentials { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+@media (max-width: 800px) { .form-row.credentials { grid-template-columns: minmax(0, 1fr); } }
+.disclosure { padding: var(--space-4) 0; }
+.disclosure summary { color: var(--muted); font-size: var(--font-control); }
+.disclosure summary:hover { color: var(--text); }
+.disclosure[open] > .form-grid { padding-top: var(--space-4); }

@@ -43,6 +43,8 @@ await esbuild({
 await viteBuild({ configFile: path.join(root, "vite.config.ts"), logLevel: "warn" });
 
 fs.cpSync(path.join(root, "build", "app-assets"), path.join(dist, "assets"), { recursive: true });
+// F5 : dictionnaires embarqués (français, anglais) et leur notice de licence.
+fs.cpSync(path.join(root, "build", "dictionaries"), path.join(dist, "dictionaries"), { recursive: true });
 
 // Empreinte du build : l'auto-test des paquets l'affiche, ce qui permet de vérifier
 // qu'un paquet contient bien ce build et pas une version restée en cache.

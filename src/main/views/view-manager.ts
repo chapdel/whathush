@@ -23,6 +23,10 @@ export interface ViewManagerDeps {
   sessionFor(accountId: string): Session;
   /** Branche liens, menu contextuel et raccourcis sur la WebContents. */
   configure(accountId: string, webContents: WebContents): void;
+  /** Proxy du compte (F9) : appliqué avant le premier chargement. */
+  prepare(accountId: string): Promise<void>;
+  /** Zoom du compte en pourcentage (F1). */
+  zoomFor(accountId: string): number;
   bounds(): Rectangle;
   events: ViewEvents;
   log: Logger;
@@ -35,6 +39,11 @@ export class ViewManager {
   private readonly popups = new Map<string, Set<BrowserWindow>>();
   private shownId: string | null = null;
   private lastBounds: Rectangle | null = null;
+  /** Proxy du compte en cours d'application : tout chargement attend sa fin (F9). */
+  private readonly prepared = new Map<string, Promise<void>>();
+  /** F6 : popups masquées pendant le verrouillage, réaffichées ensuite. */
+  private popupsHidden = false;
+  private readonly hiddenPopups = new Set<BrowserWindow>();
 
   constructor(private readonly deps: ViewManagerDeps) {}
 
@@ -71,7 +80,12 @@ export class ViewManager {
     this.accountsByWebContents.set(wc.id, accountId);
 
     wc.on("page-title-updated", (_event, title) => events.titleUpdated(accountId, title));
-    wc.on("did-finish-load", () => events.finishedLoad(accountId));
+    wc.on("did-finish-load", () => {
+      // Chromium garde le zoom par hôte et par session ; on le réapplique après chaque
+      // navigation, au cas où la page en aurait changé.
+      this.setZoom(accountId, this.deps.zoomFor(accountId));
+      events.finishedLoad(accountId);
+    });
     wc.on("did-fail-load", (_event, errorCode, description, _url, isMainFrame) => {
       // -3 = ERR_ABORTED : navigation remplacée, pas une erreur.
       if (isMainFrame && errorCode !== -3) events.failedLoad(accountId, errorCode, description);
@@ -88,7 +102,11 @@ export class ViewManager {
     window.contentView.addChildView(view);
     view.setBounds(this.deps.bounds());
     view.setVisible(accountId === this.shownId);
-    wc.loadURL(url).catch((error: unknown) => this.deps.log.warn("load-url-failed", { accountId, error: String(error) }));
+    this.setZoom(accountId, this.deps.zoomFor(accountId));
+    // Le proxy doit être en place avant la première requête (sinon elle part en direct).
+    const prepared = this.deps.prepare(accountId).catch((error: unknown) => this.deps.log.warn("prepare-failed", { accountId, error: String(error) }));
+    this.prepared.set(accountId, prepared);
+    this.load(accountId, url);
     this.deps.log.info("view-created", { accountId });
   }
 
@@ -103,15 +121,37 @@ export class ViewManager {
     const set = this.popups.get(accountId) ?? new Set<BrowserWindow>();
     set.add(window);
     this.popups.set(accountId, set);
+    if (this.popupsHidden && !window.isDestroyed()) {
+      window.hide();
+      this.hiddenPopups.add(window);
+    }
     wc.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) this.deps.events.pageGone(accountId, id);
     });
     window.on("closed", () => {
       set.delete(window);
+      this.hiddenPopups.delete(window);
       this.accountsByWebContents.delete(id);
       this.deps.events.pageGone(accountId, id);
     });
     this.deps.log.info("popup-registered", { accountId });
+  }
+
+  /** F6 : verrouillé, aucune fenêtre WhatsApp ne reste visible (popups d'appel comprises). */
+  setPopupsHidden(hidden: boolean): void {
+    this.popupsHidden = hidden;
+    for (const set of this.popups.values()) {
+      for (const window of set) {
+        if (window.isDestroyed()) continue;
+        if (hidden && window.isVisible()) {
+          window.hide();
+          this.hiddenPopups.add(window);
+        } else if (!hidden && this.hiddenPopups.has(window)) {
+          window.showInactive();
+        }
+      }
+    }
+    if (!hidden) this.hiddenPopups.clear();
   }
 
   closePopups(accountId: string): void {
@@ -128,6 +168,7 @@ export class ViewManager {
     const view = this.views.get(accountId);
     if (!view) return;
     this.views.delete(accountId);
+    this.prepared.delete(accountId);
     const wc = view.webContents;
     this.accountsByWebContents.delete(wc.id);
     if (!this.deps.window.isDestroyed()) this.deps.window.contentView.removeChildView(view);
@@ -162,14 +203,36 @@ export class ViewManager {
     for (const view of this.views.values()) view.setBounds(bounds);
   }
 
+  /** F1 : zoom de la vue et des popups du compte. */
+  setZoom(accountId: string, percent: number): void {
+    for (const wc of this.pages(accountId)) if (Math.abs(wc.getZoomFactor() - percent / 100) > 0.001) wc.setZoomFactor(percent / 100);
+  }
+
+  /** Vue principale et popups d'un compte. */
+  pages(accountId: string): WebContents[] {
+    const main = this.webContents(accountId);
+    const popups = [...(this.popups.get(accountId) ?? [])].filter((window) => !window.isDestroyed()).map((window) => window.webContents);
+    return [...(main ? [main] : []), ...popups].filter((wc) => !wc.isDestroyed());
+  }
+
+  allPages(): WebContents[] {
+    return this.ids().flatMap((id) => this.pages(id));
+  }
+
   setMuted(accountId: string, muted: boolean): void {
     const wc = this.webContents(accountId);
     if (wc && wc.isAudioMuted() !== muted) wc.setAudioMuted(muted);
   }
 
+  /** Toujours après l'application du proxy du compte : aucune requête ne part en direct. */
   load(accountId: string, url: string): void {
-    this.webContents(accountId)
-      ?.loadURL(url)
+    const view = this.views.get(accountId);
+    if (!view) return;
+    void (this.prepared.get(accountId) ?? Promise.resolve())
+      .then(() => {
+        if (this.views.get(accountId) === view && !view.webContents.isDestroyed()) return view.webContents.loadURL(url);
+        return undefined;
+      })
       .catch((error: unknown) => this.deps.log.warn("load-url-failed", { accountId, error: String(error) }));
   }
 

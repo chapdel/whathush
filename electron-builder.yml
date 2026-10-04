@@ -40,13 +40,17 @@ linux:
     - x-scheme-handler/whatsapp
   maintainer: chapdel <iamchapdel@gmail.com>
   vendor: chapdel
-  synopsis: Client multi-comptes pour WhatsApp Web
-  # Sert aussi de Comment dans l'entrée de bureau : rester court.
-  description: Plusieurs comptes WhatsApp Web côte à côte, avec Snooze, Focus et veille profonde. Projet indépendant, non affilié à WhatsApp ni à Meta.
+  synopsis: Multi-account client for WhatsApp Web
+  # Sert aussi de Comment dans l'entrée de bureau : rester court. Anglais par défaut,
+  # français par les clés [fr] (F12), comme packaging/linux/*.desktop.
+  description: Several WhatsApp Web accounts side by side, with Snooze, Focus and deep sleep. Independent project, not affiliated with WhatsApp or Meta.
   desktop:
     entry:
-      GenericName: Messagerie multi-comptes
-      Keywords: whatsapp;messagerie;chat;multi-comptes;snooze;
+      GenericName: Multi-account messaging
+      GenericName[fr]: Messagerie multi-comptes
+      Comment[fr]: Plusieurs comptes WhatsApp Web côte à côte, avec Snooze, Focus et veille profonde. Projet indépendant, non affilié à WhatsApp ni à Meta.
+      Keywords: whatsapp;messaging;chat;multi-account;snooze;
+      Keywords[fr]: whatsapp;messagerie;chat;multi-comptes;snooze;
 
 appImage:
   artifactName: ${productName}-${version}-${arch}.AppImage

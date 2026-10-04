@@ -3,6 +3,7 @@
 
 import { BrowserWindow, nativeTheme, type WebContents } from "electron";
 import path from "node:path";
+import { t } from "../shared/i18n";
 import { PRODUCT_NAME } from "../shared/identity";
 import { RENDERER_BASE_URL } from "./renderer-protocol";
 
@@ -65,7 +66,7 @@ export function createSettingsWindow(paths: WindowPaths, parent: BrowserWindow |
     minWidth: 760,
     minHeight: 520,
     show: false,
-    title: `Paramètres — ${PRODUCT_NAME}`,
+    title: t("window.settingsTitle", { product: PRODUCT_NAME }),
     icon: paths.iconPath,
     autoHideMenuBar: true,
     backgroundColor: windowBackground(true),

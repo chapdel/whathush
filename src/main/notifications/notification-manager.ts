@@ -5,6 +5,7 @@
 // navigue ou disparaît emporte les siennes (leurs identifiants n'auraient plus de sens).
 
 import { nativeImage, Notification } from "electron";
+import { t } from "../../shared/i18n";
 import type { NotifyPayload } from "../../shared/ipc";
 import type { AccountConfig } from "../../shared/schemas";
 import type { EffectivePolicy } from "../core/policy";
@@ -19,6 +20,7 @@ export interface ShownNotification {
   body: string;
   silent: boolean;
   isCall: boolean;
+  hasIcon: boolean;
 }
 
 export interface NotificationDeps {
@@ -28,6 +30,10 @@ export interface NotificationDeps {
   accountsInCall(): string[];
   /** Affiche le compte, ramène la fenêtre et renvoie le clic à la page d'origine. */
   open(accountId: string, webContentsId: number, notificationId: number): void;
+  /** F6 : verrouillé, ni aperçu ni photo. */
+  locked(): boolean;
+  /** F10 : photo servie par un autre domaine de WhatsApp. */
+  fetchAvatar(accountId: string, url: string): Promise<Buffer | null>;
   /** Mode test : enregistre au lieu d'afficher (§39). */
   sink?: (notification: ShownNotification) => void;
 }
@@ -42,6 +48,8 @@ interface Live {
 
 export class NotificationManager {
   private readonly live = new Map<string, Live>();
+  /** Notifications dont la photo se télécharge : fermées entre-temps, elles ne s'affichent pas. */
+  private readonly pending = new Map<string, { accountId: string; webContentsId: number }>();
 
   constructor(private readonly deps: NotificationDeps) {}
 
@@ -49,7 +57,7 @@ export class NotificationManager {
     return `${webContentsId}:${notificationId}`;
   }
 
-  handle(accountId: string, webContentsId: number, payload: NotifyPayload): NotifyOutcome {
+  async handle(accountId: string, webContentsId: number, payload: NotifyPayload): Promise<NotifyOutcome> {
     const account = this.deps.account(accountId);
     const policy = this.deps.policy(accountId);
     if (!account || !policy) return "dropped-disabled";
@@ -62,25 +70,38 @@ export class NotificationManager {
     }
 
     const otherCall = isCall && this.deps.accountsInCall().some((id) => id !== accountId);
-    const title = `${account.label} — ${payload.title}`;
-    const preview = !policy.showPreview ? (isCall ? "Appel entrant" : "Nouveau message") : payload.body;
-    const body = otherCall ? `${preview}\nUn autre appel est en cours.` : preview;
     // Le réglage « Son » du compte vaut aussi pour les appels.
     const silent = payload.silent || !account.notifications.sound;
+    const key = this.key(webContentsId, payload.id);
+    let icon: Electron.NativeImage | null = null;
+    if (policy.showPreview && !this.deps.locked() && payload.icon) icon = nativeImage.createFromDataURL(payload.icon);
+    else if (policy.showPreview && !this.deps.locked() && payload.iconUrl) {
+      this.pending.set(key, { accountId, webContentsId });
+      const image = await this.deps.fetchAvatar(accountId, payload.iconUrl);
+      if (!this.pending.delete(key)) return "dropped-disabled";
+      if (image) icon = nativeImage.createFromBuffer(image);
+    }
+    // Verrouillé (F6), y compris pendant le téléchargement de la photo : la notification
+    // reste, pour ne pas manquer un appel, mais sans aperçu, sans expéditeur et sans photo.
+    const locked = this.deps.locked();
+    const showPreview = policy.showPreview && !locked;
+    if (!showPreview || icon?.isEmpty()) icon = null;
+    const title = locked ? account.label : `${account.label} — ${payload.title}`;
+    const preview = !showPreview ? (isCall ? t("notification.incomingCall") : t("notification.newMessage")) : payload.body;
+    const body = otherCall ? `${preview}\n${t("notification.otherCall")}` : preview;
 
     if (this.deps.sink) {
-      this.deps.sink({ accountId, webContentsId, id: payload.id, title, body, silent, isCall });
+      this.deps.sink({ accountId, webContentsId, id: payload.id, title, body, silent, isCall, hasIcon: icon !== null });
       return "shown";
     }
     if (!Notification.isSupported()) return "dropped-disabled";
 
-    const key = this.key(webContentsId, payload.id);
     this.live.get(key)?.notification.close();
     const notification = new Notification({
       title,
       body,
       silent,
-      ...(policy.showPreview && payload.icon ? { icon: nativeImage.createFromDataURL(payload.icon) } : {}),
+      ...(icon ? { icon } : {}),
       // Jamais « critical » : cette urgence passerait outre le mode Ne pas déranger du bureau.
       urgency: "normal"
     });
@@ -99,12 +120,14 @@ export class NotificationManager {
 
   close(webContentsId: number, notificationId: number): void {
     const key = this.key(webContentsId, notificationId);
+    this.pending.delete(key);
     this.live.get(key)?.notification.close();
     this.live.delete(key);
   }
 
   /** La page a navigué ou disparu. */
   closeForPage(webContentsId: number): void {
+    for (const [key, entry] of this.pending) if (entry.webContentsId === webContentsId) this.pending.delete(key);
     for (const [key, entry] of this.live) {
       if (entry.webContentsId === webContentsId) {
         entry.notification.close();
@@ -115,6 +138,7 @@ export class NotificationManager {
 
   /** Compte mis en veille ou supprimé. */
   closeForAccount(accountId: string): void {
+    for (const [key, entry] of this.pending) if (entry.accountId === accountId) this.pending.delete(key);
     for (const [key, entry] of this.live) {
       if (entry.accountId === accountId) {
         entry.notification.close();

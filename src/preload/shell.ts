@@ -19,6 +19,7 @@ const api = {
   onRequestAddAccount: (callback: () => void) => subscribe(CHANNELS.shellRequestAddAccount, callback),
   onRequestSnoozeDate: (callback: (accountId: string) => void) => subscribe(CHANNELS.shellRequestSnoozeDate, callback),
   onRequestFocusAccounts: (callback: () => void) => subscribe(CHANNELS.shellRequestFocusAccounts, callback),
+  onRequestShortcuts: (callback: () => void) => subscribe(CHANNELS.shellRequestShortcuts, callback),
   command: (command: Command): void => ipcRenderer.send(CHANNELS.command, command)
 };
 

@@ -8,7 +8,7 @@ import { APP_ID, DATA_DIR_NAME, PRODUCT_NAME } from "../shared/identity";
 import { Application } from "./app";
 import { createLogger } from "./log";
 import { registerRendererScheme, serveRenderer } from "./renderer-protocol";
-import { chromeUserAgent } from "./sessions/session-factory";
+import { chromeUserAgent, installBundledDictionaries } from "./sessions/session-factory";
 import { AppStore } from "./storage/app-store";
 
 const TEST = process.env.WHATHUSH_TEST === "1";
@@ -30,6 +30,14 @@ if (TEST) {
 }
 app.setName(PRODUCT_NAME);
 app.userAgentFallback = chromeUserAgent();
+// Tests : jamais de trousseau système (KWallet ou GNOME Keyring demanderaient un mot de
+// passe en plein test) ; les identifiants de proxy restent alors en mémoire (F9).
+if (TEST) {
+  app.commandLine.appendSwitch("password-store", "basic");
+  // Caméra et micro simulés : les demandes passent bien par nos règles (F8), sans
+  // dépendre du matériel de la machine (pas de use-fake-ui : il court-circuiterait la demande).
+  app.commandLine.appendSwitch("use-fake-device-for-media-stream");
+}
 // §25 : saisie IME / emoji sous Wayland natif.
 if (process.env.XDG_SESSION_TYPE === "wayland") app.commandLine.appendSwitch("enable-wayland-ime");
 
@@ -61,6 +69,7 @@ if (!SELF_TEST && !app.requestSingleInstanceLock()) {
     const store = new AppStore(userData, log);
 
     serveRenderer(path.join(distDir, "renderer"));
+    installBundledDictionaries(path.join(distDir, "dictionaries"), path.join(userData, "Dictionaries"), log);
     store.purgePendingPartitions(path.join(userData, "Partitions"));
     application = new Application({
       store,
@@ -76,7 +85,9 @@ if (!SELF_TEST && !app.requestSingleInstanceLock()) {
       test: TEST,
       startHidden: SELF_TEST || process.argv.includes("--hidden") || store.get("preferences").startMinimized,
       devTools,
-      initialArgv: process.argv
+      initialArgv: process.argv,
+      // F10 : origine de la fausse page qui sert les photos, en test seulement.
+      ...(TEST && process.env.WHATHUSH_TEST_AVATAR_ORIGIN ? { avatarOrigins: [process.env.WHATHUSH_TEST_AVATAR_ORIGIN] } : {})
     });
     if (TEST) (globalThis as { __whathush?: Application }).__whathush = application;
     await application.start();

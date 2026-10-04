@@ -28,6 +28,17 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   application.accounts.setModal(true);
   await sleep(1500);
   const duringModal = await read();
-  console.log("RESULT " + JSON.stringify({ afterA, afterB, duringModal }));
+  application.accounts.setModal(false);
+  await sleep(1500);
+  const afterModal = await read();
+  // F6 : verrouillé, aucune page WhatsApp n'est visible, même celle du compte affiché.
+  await application.lock.setCode(null, "1234");
+  application.lock.trigger("manual");
+  await sleep(1500);
+  const duringLock = await read();
+  await application.lock.unlock("1234");
+  await sleep(1500);
+  const afterUnlock = await read();
+  console.log("RESULT " + JSON.stringify({ afterA, afterB, duringModal, afterModal, duringLock, afterUnlock }));
   process.exit(0);
 })();

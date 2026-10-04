@@ -18,6 +18,8 @@ export interface LinkRouterDeps {
   registerPopup(accountId: string, window: BrowserWindow): void;
   /** Mode test : enregistre au lieu d'ouvrir le navigateur. */
   openExternal?: (url: string) => void;
+  /** F6 : verrouillé, aucune nouvelle fenêtre WhatsApp ne s'ouvre. */
+  locked(): boolean;
 }
 
 export class LinkRouter {
@@ -40,6 +42,10 @@ export class LinkRouter {
         // pas montré que WhatsApp en a besoin (question ouverte n°6).
         if (url.startsWith("about:")) {
           this.deps.log.warn("popup-about-blank-refused", { accountId });
+          return { action: "deny" };
+        }
+        if (this.deps.locked()) {
+          this.deps.log.warn("popup-refused-locked", { accountId });
           return { action: "deny" };
         }
         this.deps.log.info("popup-allowed", { accountId });

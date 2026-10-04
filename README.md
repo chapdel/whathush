@@ -26,19 +26,38 @@ Client desktop Linux multi-comptes pour WhatsApp Web : plusieurs comptes isolés
 | Reprise après crash | §32 | recréation 1 s, 5 s, 30 s, puis arrêt et bouton « Recharger » |
 | Détection QR / déconnexion | §35 | adaptateur isolé, lecture seule, mode dégradé s’il ne répond pas |
 
+Ajoutées en 0.2.0 ([plan complémentaire](docs/plan-fonctionnalites-complementaires.md), F1 à F14) :
+
+| Fonction | Plan | Comment |
+|---|---|---|
+| Français et anglais | F12 | langue du système par défaut, réglable ; catalogue typé ; entrée de bureau et AppStream traduites |
+| Presse-papiers | F13 | texte et images, « Copier l’image », « Coller comme texte brut » (Ctrl+Maj+V) |
+| « En cours de lecture » | F14 | message vocal suivi par l’API standard, Pause / Reprendre dans la barre latérale et le tray, MPRIS ; le Snooze ne coupe plus une lecture lancée par l’utilisateur |
+| Zoom et raccourcis | F1 | zoom par compte (Ctrl+ / Ctrl− / Ctrl+0, Ctrl+molette), taille de l’interface, feuille des raccourcis (Ctrl+/) |
+| Téléchargements | F2 | historique avec rétention (ou aucun), ouvrir, afficher dans le dossier, fichier introuvable signalé |
+| Rapport de diagnostic | F3 | fichier caviardé à joindre soi-même ; rien n’est envoyé |
+| Non-lus sur l’icône du tray | F4 | nombre (1 à 9, 9+), point ou rien |
+| Correcteur hors ligne | F5 | dictionnaires français et anglais embarqués ; autres langues téléchargées depuis Google seulement sur choix explicite |
+| Verrouillage par code | F6 | au démarrage, fenêtre masquée, inactivité, verrouillage de la session ; délai croissant ; « Code oublié » efface les sessions |
+| Voile de confidentialité | F7 | Ctrl+Maj+H, perte de focus, partage d’écran ; flou message par message en option expérimentale |
+| Autorisations par compte | F8 | micro, caméra, localisation, partage d’écran : autoriser, demander, refuser |
+| Proxy | F9 | HTTP, HTTPS, SOCKS5, global ou par compte, avec identifiants chiffrés ; relais local pour SOCKS5 authentifié |
+| Photos des notifications | F10 | téléchargées par le processus principal depuis `*.whatsapp.net` seulement |
+| Thème de WhatsApp | F11 | aide, une fois par compte, pour régler WhatsApp sur « Défaut du système » |
+
 ## Installer
 
 Les paquets se construisent dans `release/` (voir « Paquets »).
 
 ```bash
 # AppImage
-chmod +x release/WhatHush-0.1.0-x86_64.AppImage && ./release/WhatHush-0.1.0-x86_64.AppImage
+chmod +x release/WhatHush-0.2.0-x86_64.AppImage && ./release/WhatHush-0.2.0-x86_64.AppImage
 # Debian / Ubuntu (installe aussi le profil AppArmor d’Ubuntu 24.04+)
-sudo apt install ./release/whathush_0.1.0_amd64.deb
+sudo apt install ./release/whathush_0.2.0_amd64.deb
 # Fedora
-sudo dnf install ./release/whathush-0.1.0.x86_64.rpm
+sudo dnf install ./release/whathush-0.2.0.x86_64.rpm
 # Flatpak (paquet local)
-flatpak install --user release/WhatHush-0.1.0.flatpak
+flatpak install --user release/WhatHush-0.2.0.flatpak
 ```
 
 Au premier lancement, ajoutez un compte puis scannez le QR code depuis le téléphone (WhatsApp → Appareils connectés). Chaque compte occupe un appareil lié (4 au maximum par numéro).
@@ -58,11 +77,12 @@ Données : `~/.config/mcdesk/` (dossier en 0700 ; `~/.config/mcdesk-demo/` pour 
 | Commande | Ce qu’elle vérifie |
 |---|---|
 | `npm run typecheck` | types de tout le projet |
-| `npm test` | 132 tests unitaires : politique, expiration Snooze/Focus, fuseaux, machine à états, gestionnaire de comptes, liens, stockage, menus, IPC, protocole `app://`, autostart |
-| `npm run test:e2e` | 25 tests de bout en bout (Playwright pilote Electron, sans fenêtre, contre la fausse page), dont clavier, dialogues, resize, thèmes et HiDPI ; captures dans `test-results/screens/` |
-| `npm run test:native` | la règle de visibilité du §9, mesurée sans Playwright (Playwright émule le focus des pages et fausserait le résultat) |
+| `npm test` | 185 tests unitaires : politique, expiration Snooze/Focus, fuseaux, machine à états, gestionnaire de comptes, liens, stockage et migrations v1 → v2, menus, IPC, protocole `app://`, autostart ; catalogues de langue, raccourcis, lecture des médias, historique, autorisations, verrou, rapport, proxy et relais SOCKS5 (contre un faux proxy amont), photos, correcteur |
+| `npm run test:e2e` | 46 tests de bout en bout (Playwright pilote Electron, sans fenêtre, contre la fausse page), dont clavier, dialogues, resize, thèmes et HiDPI, interface en anglais, presse-papiers, lecture, zoom, téléchargements, rapport, verrou, voile, autorisations, proxy HTTP et SOCKS5, photos ; captures dans `test-results/screens/` |
+| `npm run test:native` | la règle de visibilité du §9, mesurée sans Playwright (Playwright émule le focus des pages et fausserait le résultat), y compris pendant le verrouillage |
 | `npm run build && ./node_modules/.bin/playwright test --config playwright.native.config.ts` | fenêtres et tray sur le bureau courant, backends Wayland et X11 selon la session disponible ; utilise des comptes locaux de test |
 | `cd lab && npm run smoke` | le Feasibility Lab (phase 0) |
+| `npm run icons` | régénère les icônes du tray avec nombre (ImageMagick) |
 
 L’[audit UI/UX](docs/ui-ux-audit.md) décrit les défauts observés, les corrections et les limites de validation. Le backend X11 lancé depuis KDE Wayland passe par XWayland ; les captures automatisées utilisent la fausse page WhatsApp.
 
@@ -79,7 +99,7 @@ podman run --rm --security-opt label=disable -v "$PWD":/work -w /work \
 # --disable-cache : sans lui, flatpak-builder peut réutiliser un ancien build en cache
 flatpak run org.flatpak.Builder --user --force-clean --disable-cache --state-dir=release/.flatpak-builder \
   --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.mcdesk.yml
-flatpak build-bundle release/flatpak-repo release/WhatHush-0.1.0.flatpak io.github.chapdel.mcdesk
+flatpak build-bundle release/flatpak-repo release/WhatHush-0.2.0.flatpak io.github.chapdel.mcdesk
 ```
 
 `whathush --self-test` démarre réellement l’application empaquetée (fuses actives), vérifie que l’interface s’affiche et imprime un bilan JSON, dont l’empreinte du build (`build` : commit, date). Comparer cette empreinte à `dist/build-info.json` garantit que le paquet contient le build attendu, et pas une version restée en cache.
@@ -109,6 +129,11 @@ src/
   main/policy/         Snooze, Focus, horaires appliqués (§12 à §15)
   main/links/          routage des liens et des popups (§23)
   main/whatsapp-adapter/  seul code qui lit le contenu de WhatsApp (§35)
+  main/security/       verrouillage par code (F6)
+  main/privacy/        voile de confidentialité (F7)
+  main/proxy/          proxy et relais SOCKS5 local (F9)
+  main/diagnostic/     rapport de diagnostic (F3)
+  shared/i18n/         catalogues français et anglais (F12)
   main/app.ts          assemblage, état de l’UI, commandes, IPC
   preload/             coque (API typée) et vues WhatsApp (interception)
   renderer/            interface React : barre latérale, accueil, modales, paramètres
@@ -117,13 +142,13 @@ packaging/             entrée de bureau, AppStream, PKGBUILD, manifeste Flatpak
 lab/                   Feasibility Lab (phase 0), projet séparé
 ```
 
-## Suite prévue
+## Plan complémentaire
 
-[`docs/plan-fonctionnalites-complementaires.md`](docs/plan-fonctionnalites-complementaires.md) : interface multilingue, presse-papiers testé, indicateur « En cours de lecture », zoom et raccourcis, historique des téléchargements, rapport de diagnostic, verrouillage par code, voile de confidentialité, permissions par compte, proxy, avatars et thème synchronisé.
+[`docs/plan-fonctionnalites-complementaires.md`](docs/plan-fonctionnalites-complementaires.md) : les quatorze fonctions de la 0.2.0, ce qui a été fait, les écarts avec le plan et ce qui reste à confirmer au Lab.
 
 ## Ce qui reste de votre côté
 
-1. **Tests avec de vrais comptes** (`lab/README.md`, `lab/RESULTS.md`) : appels, notifications réelles, latence, accusés de lecture, déconnexion à distance. Ils confirmeront deux points marqués expérimentaux : la reconnaissance des notifications d’appel (mode « appels uniquement ») et les repères de l’interface des conversations dans l’adaptateur.
+1. **Tests avec de vrais comptes** (`lab/README.md`, `lab/RESULTS.md`) : appels, notifications réelles, latence, accusés de lecture, déconnexion à distance. Ils confirmeront les points marqués expérimentaux : la reconnaissance des notifications d’appel (mode « appels uniquement »), les repères de l’interface des conversations et du flou des messages dans l’adaptateur, la forme des photos de notification, MPRIS, le verrouillage de session sous GNOME et KDE, le trousseau pour les identifiants de proxy (liste complète dans le plan complémentaire).
 2. **Licence** : à choisir (MIT, GPL-3.0-or-later…). Les paquets indiquent « non licencié » en attendant.
 3. **Identifiant de l’application** : `io.github.chapdel.mcdesk` suppose le compte GitHub `chapdel` ; à confirmer avant toute publication (il fixe le dossier de données Flatpak).
 4. **Revue de marque** du nom WhatHush (§38).

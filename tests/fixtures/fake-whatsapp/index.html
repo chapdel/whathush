@@ -31,6 +31,8 @@
     .msg.mine { align-self: flex-end; background: var(--mine); }
     .tools { padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 6px; background: var(--panel); border-top: 1px solid var(--line); }
     .tools button, .tools a { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; font-size: 12.5px; text-decoration: none; cursor: pointer; }
+    .composer { margin: 0 18px 10px; padding: 10px 12px; min-height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+    .photo { width: 120px; height: 80px; border-radius: 8px; display: block; }
   </style>
 </head>
 <body>
@@ -73,17 +75,19 @@
             <div class="side-head">Discussions</div>
             ${CHATS.map(([name, last, color, count]) => `
               <div class="chat"><span class="pic" style="background:${color}"></span>
-                <div><div class="name">${name}</div><div class="last">${last}</div></div>
+                <div><div class="name">${name}</div><div class="last" data-testid="cell-frame-secondary">${last}</div></div>
                 ${count ? `<span class="count">${count}</span>` : ""}
               </div>`).join("")}
           </div>
-          <div class="conversation">
+          <div class="conversation" id="main">
             <div class="conv-head">Marie</div>
             <div class="messages">
-              <div class="msg">Salut ! Tu as vu le planning ?</div>
-              <div class="msg mine">Oui, je regarde ça ce soir.</div>
-              <div class="msg">On se voit demain ?</div>
+              <div class="msg" data-pre-plain-text="[09:58, 05/10/2026] Marie: ">Salut ! Tu as vu le planning ?</div>
+              <div class="msg mine" data-pre-plain-text="[09:59, 05/10/2026] Moi: ">Oui, je regarde ça ce soir.</div>
+              <div class="msg"><img id="photo" class="photo" alt="Photo" src="${PHOTO}"></div>
+              <div class="msg" data-pre-plain-text="[10:00, 05/10/2026] Marie: ">On se voit demain ?</div>
             </div>
+            <div id="composer" class="composer" contenteditable="true" role="textbox" aria-label="Écrire un message"></div>
             <div class="tools">
               <button id="notify">Notification</button>
               <button id="call">Appel entrant</button>
@@ -109,10 +113,42 @@
       on("logout", () => fake.logout());
     }
 
+    // Image d'une conversation (copier l'image, F13) et sons de test (F14).
+    const PHOTO = (() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 120;
+      canvas.height = 80;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#3b82f6";
+      context.fillRect(0, 0, 120, 80);
+      context.fillStyle = "#fbbf24";
+      context.fillRect(20, 20, 40, 40);
+      return canvas.toDataURL("image/png");
+    })();
+    function wavBlob(seconds) {
+      const rate = 8000;
+      const samples = Math.round(rate * seconds);
+      const buffer = new ArrayBuffer(44 + samples);
+      const view = new DataView(buffer);
+      const text = (offset, value) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+      text(0, "RIFF"); view.setUint32(4, 36 + samples, true); text(8, "WAVE"); text(12, "fmt ");
+      view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+      view.setUint32(24, rate, true); view.setUint32(28, rate, true); view.setUint16(32, 1, true); view.setUint16(34, 8, true);
+      text(36, "data"); view.setUint32(40, samples, true);
+      for (let index = 0; index < samples; index++) view.setUint8(44 + index, 128 + Math.round(30 * Math.sin(index / 6)));
+      return new Blob([buffer], { type: "audio/wav" });
+    }
+    document.addEventListener("paste", (event) => {
+      const files = [...(event.clipboardData?.files ?? [])].map((file) => ({ type: file.type, size: file.size }));
+      fake.pastes.push({ text: event.clipboardData?.getData("text/plain") ?? "", html: event.clipboardData?.getData("text/html") ?? "", files });
+    });
+
     window.fake = {
       clicks: [],
-      notify(title, body, tag) {
-        const notification = new Notification(title, { body, tag });
+      pastes: [],
+      audio: null,
+      notify(title, body, tag, icon) {
+        const notification = new Notification(title, { body, tag, ...(icon ? { icon } : {}) });
         notification.onclick = () => { fake.clicks.push(tag); setUnread(0); };
         return true;
       },
@@ -121,13 +157,40 @@
       logout() { localStorage.removeItem("fakeLinked"); renderLinking(); setUnread(0); },
       async mic() { streams.push(await navigator.mediaDevices.getUserMedia({ audio: true })); return true; },
       stop() { streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop())); streams = []; return true; },
-      download() {
+      download(name = "rapport.txt") {
         const link = document.createElement("a");
         link.href = URL.createObjectURL(new Blob(["contenu de test\n"], { type: "text/plain" }));
-        link.download = "rapport.txt";
+        link.download = name;
         link.click();
         return true;
       },
+      /** Message vocal : élément dans le DOM, ou détaché (new Audio()). */
+      async play(seconds = 6, detached = false, loop = false) {
+        const audio = detached ? new Audio() : document.createElement("audio");
+        if (!detached) document.body.append(audio);
+        audio.loop = loop;
+        audio.src = URL.createObjectURL(wavBlob(seconds));
+        fake.audio = audio;
+        await audio.play();
+        return true;
+      },
+      paused: () => (fake.audio ? fake.audio.paused : null),
+      focusComposer() { document.getElementById("composer")?.focus(); return true; },
+      composerText: () => document.getElementById("composer")?.innerText ?? "",
+      composerHtml: () => document.getElementById("composer")?.innerHTML ?? "",
+      async camera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach((track) => track.stop());
+          return "ok";
+        } catch (error) {
+          return error.name;
+        }
+      },
+      location() {
+        return new Promise((resolve) => navigator.geolocation.getCurrentPosition(() => resolve("ok"), (error) => resolve(`error:${error.code}`), { timeout: 3000 }));
+      },
+      blurred: () => getComputedStyle(document.documentElement).filter,
       visibility: () => document.visibilityState,
       pageId: () => localStorage.getItem("fakePageId")
     };

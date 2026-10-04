@@ -5,16 +5,18 @@
 
 pkgname=whathush-bin
 _appid=io.github.chapdel.mcdesk
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
-pkgdesc="Plusieurs comptes WhatsApp Web côte à côte, avec Snooze, Focus et veille profonde (non affilié à WhatsApp ni à Meta)"
+pkgdesc="Several WhatsApp Web accounts side by side, with Snooze, Focus and deep sleep (not affiliated with WhatsApp or Meta)"
 arch=('x86_64')
 url="https://github.com/chapdel/whathush"
 license=('LicenseRef-proprietary')
 depends=('gtk3' 'libnotify' 'nss' 'libxss' 'libxtst' 'xdg-utils' 'at-spi2-core' 'util-linux-libs' 'libsecret' 'alsa-lib')
-optdepends=('pipewire: partage d’écran sous Wayland'
-            'xdg-desktop-portal: sélecteur de partage d’écran'
-            'libappindicator-gtk3: icône dans la zone de notification')
+optdepends=('pipewire: screen sharing on Wayland'
+            'xdg-desktop-portal: screen sharing picker'
+            'libappindicator-gtk3: notification area icon'
+            'kwallet: encrypted proxy credentials on KDE'
+            'gnome-keyring: encrypted proxy credentials on GNOME')
 provides=('whathush')
 conflicts=('whathush')
 options=('!strip' '!debug')

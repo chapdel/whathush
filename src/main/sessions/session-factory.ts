@@ -3,8 +3,12 @@
 // garderait le comportement par défaut (toutes permissions accordées).
 
 import { desktopCapturer, session, type DesktopCapturerSource, type DownloadItem, type Session } from "electron";
+import fs from "node:fs";
+import path from "node:path";
 import { partitionFor } from "../../shared/constants";
-import { isPermissionGranted, normalizeOrigin } from "../core/permissions";
+import type { AccountPermissions } from "../../shared/schemas";
+import { checkPermission, decidePermission, normalizeOrigin, type PermissionSubject } from "../core/permissions";
+import { BLOCKED_DICTIONARY_URL, BUNDLED_DICTIONARIES, GOOGLE_DICTIONARY_URL, type SpellcheckPlan } from "../core/spellcheck";
 import type { Logger } from "../log";
 
 export interface SessionDeps {
@@ -12,7 +16,11 @@ export interface SessionDeps {
   userAgent: string;
   log: Logger;
   onDownload: (accountId: string, item: DownloadItem) => void;
-  spellcheckLanguages(): readonly string[];
+  spellcheck(): SpellcheckPlan;
+  /** F8 : réglages du compte, relus à chaque demande. */
+  permissions(accountId: string): AccountPermissions;
+  /** F8 : « Demander » ; « always » met le réglage du compte à « Autoriser ». */
+  askPermission(accountId: string, subject: PermissionSubject): Promise<"deny" | "once" | "always">;
   /**
    * §20 : sous Wayland, le portail système fait choisir l'écran. Sous X11, rien ne le
    * fait : on demande confirmation et on fait choisir l'écran. null = refus.
@@ -42,15 +50,27 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
 
   ses.setUserAgent(deps.userAgent);
 
+  // §26 et F8 : liste blanche par origine d'abord, puis réglage du compte.
   ses.setPermissionRequestHandler((_webContents, permission, callback, details) => {
-    const granted = isPermissionGranted(permission, details.requestingUrl, whatsappOrigin);
-    if (!granted) log.warn("permission-denied", { accountId, permission, origin: normalizeOrigin(details.requestingUrl) });
-    callback(granted);
+    const mediaTypes = (details as { mediaTypes?: string[] }).mediaTypes;
+    const outcome = decidePermission({ permission, origin: details.requestingUrl, ...(mediaTypes ? { mediaTypes } : {}) }, deps.permissions(accountId), whatsappOrigin);
+    if (outcome.decision === "ask" && outcome.subject) {
+      deps
+        .askPermission(accountId, outcome.subject)
+        .then((answer) => {
+          log.info("permission-asked", { accountId, permission, answer });
+          callback(answer !== "deny");
+        })
+        .catch(() => callback(false));
+      return;
+    }
+    if (outcome.decision === "deny") log.warn("permission-denied", { accountId, permission, origin: normalizeOrigin(details.requestingUrl) });
+    callback(outcome.decision === "grant");
   });
 
   const checksLogged = new Set<string>();
-  ses.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
-    const granted = isPermissionGranted(permission, requestingOrigin, whatsappOrigin);
+  ses.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
+    const granted = checkPermission(permission, requestingOrigin, details.mediaType, deps.permissions(accountId), whatsappOrigin);
     if (!granted && !checksLogged.has(permission)) {
       checksLogged.add(permission);
       log.info("permission-check-denied", { accountId, permission });
@@ -63,7 +83,7 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
   // §20 : sous Wayland, desktopCapturer ouvre le sélecteur du portail système.
   // Seul le type « screen » est demandé, pour éviter un double sélecteur.
   ses.setDisplayMediaRequestHandler((request, callback) => {
-    if (!isPermissionGranted("display-capture", request.securityOrigin, whatsappOrigin)) {
+    if (decidePermission({ permission: "display-capture", origin: request.securityOrigin }, deps.permissions(accountId), whatsappOrigin).decision !== "grant") {
       callback({});
       return;
     }
@@ -82,15 +102,38 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
 
   ses.on("will-download", (_event, item) => deps.onDownload(accountId, item));
 
-  // §24 : correcteur désactivé tant qu'aucune langue n'est choisie (les
-  // dictionnaires seraient téléchargés depuis les serveurs de Google).
-  applySpellcheck(ses, deps.spellcheckLanguages());
+  // F5 : un téléchargement demandé alors qu'il est bloqué signale un dictionnaire
+  // embarqué introuvable (nom de fichier changé par une version d'Electron).
+  ses.on("spellcheck-dictionary-initialized", (_event, language) => log.info("spellcheck-ready", { accountId, language }));
+  ses.on("spellcheck-dictionary-download-begin", (_event, language) => log.info("spellcheck-download", { accountId, language }));
+  ses.on("spellcheck-dictionary-download-failure", (_event, language) => log.warn("spellcheck-dictionary-missing", { accountId, language }));
+  applySpellcheck(ses, deps.spellcheck());
   return ses;
 }
 
-export function applySpellcheck(ses: Session, languages: readonly string[]): void {
-  const available = new Set(ses.availableSpellCheckerLanguages);
-  const selected = languages.filter((language) => available.has(language));
-  ses.setSpellCheckerEnabled(selected.length > 0);
-  if (selected.length > 0) ses.setSpellCheckerLanguages(selected);
+/** F5, §24 : jamais de téléchargement depuis Google sans choix explicite d'une langue non embarquée. */
+export function applySpellcheck(ses: Session, plan: SpellcheckPlan): void {
+  ses.setSpellCheckerDictionaryDownloadURL(plan.allowGoogle ? GOOGLE_DICTIONARY_URL : BLOCKED_DICTIONARY_URL);
+  ses.setSpellCheckerEnabled(plan.languages.length > 0);
+  if (plan.languages.length > 0) ses.setSpellCheckerLanguages(plan.languages);
+}
+
+/**
+ * Dépose les dictionnaires embarqués là où Chromium les cherche avant tout
+ * téléchargement (<userData>/Dictionaries). Copie seulement s'ils manquent ou diffèrent.
+ */
+export function installBundledDictionaries(sourceDir: string, targetDir: string, log: Logger): void {
+  try {
+    fs.mkdirSync(targetDir, { recursive: true, mode: 0o700 });
+    for (const file of Object.values(BUNDLED_DICTIONARIES)) {
+      const source = path.join(sourceDir, file);
+      const target = path.join(targetDir, file);
+      const size = fs.statSync(source).size;
+      if (fs.existsSync(target) && fs.statSync(target).size === size) continue;
+      fs.copyFileSync(source, target);
+      log.info("dictionary-installed", { file });
+    }
+  } catch (error) {
+    log.warn("dictionary-install-failed", { error: String(error) });
+  }
 }

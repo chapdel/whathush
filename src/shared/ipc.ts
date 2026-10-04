@@ -3,11 +3,22 @@
 
 import { z } from "zod";
 import { LABEL_MAX_LENGTH } from "./constants";
+import type { Locale } from "./i18n";
 import {
+  AccountPermissionsSchema,
+  AccountProxyModeSchema,
   FocusProfileSchema,
+  GlobalProxySchema,
+  InterfaceScaleSchema,
+  LanguagePreferenceSchema,
   NotificationSettingsSchema,
+  PrivacyVeilSchema,
+  ProxyServerSchema,
+  ZoomPercentSchema,
   ScheduleSchema,
+  SpellcheckModeSchema,
   ThemeSchema,
+  TrayCountStyleSchema,
   type AccountConfig,
   type FocusFile,
   type Mode,
@@ -36,6 +47,18 @@ export interface AccountItem {
   inCall: boolean;
   audible: boolean;
   memoryMB: number | null;
+  /** F1 : zoom de la vue WhatsApp, en pourcentage. */
+  zoomPercent: number;
+  /** F14 : média en cours (ou en pause récente) dans ce compte. */
+  playback: { playing: boolean; kind: "audio" | "video"; title: string | null } | null;
+}
+
+export interface LockView {
+  enabled: boolean;
+  locked: boolean;
+  /** Prochain essai permis après plusieurs échecs (ISO). */
+  retryAt: string | null;
+  failed: boolean;
 }
 
 export interface Notice {
@@ -50,6 +73,9 @@ export interface Notice {
 
 export interface ShellState {
   productName: string;
+  /** Langue de l'interface (F12) et étiquette BCP 47 pour les dates et nombres. */
+  language: Locale;
+  localeTag: string;
   accounts: AccountItem[];
   activeId: string | null;
   totalUnread: number;
@@ -60,25 +86,65 @@ export interface ShellState {
   pendingLink: { id: number; phone: string | null } | null;
   notices: Notice[];
   trayAvailable: boolean;
+  /** F6 */
+  lock: LockView;
+  /** F7 */
+  veiled: boolean;
+  /** F14 : lecture affichée en pied de barre latérale. */
+  nowPlaying: { accountId: string; label: string; playing: boolean; kind: "audio" | "video"; title: string | null } | null;
+  /** F2 */
+  downloads: { active: number; progress: number | null };
+  /** F1 : zoom qui vient de changer, affiché brièvement. */
+  zoomToast: { accountId: string; percent: number; sequence: number } | null;
+}
+
+export interface DownloadEntry {
+  id: string;
+  accountId: string;
+  accountLabel: string;
+  fileName: string;
+  bytes: number;
+  state: "progressing" | "completed" | "cancelled" | "interrupted";
+  startedAt: string;
+  finishedAt: string | null;
+  missing: boolean;
+  progress: number | null;
 }
 
 // --- État de la fenêtre des paramètres ----------------------------------------------
 
+export type SettingsSection = "general" | "appearance" | "accounts" | "schedules" | "focus" | "files" | "downloads" | "security" | "network" | "about";
+
 export interface SettingsState {
   productName: string;
+  language: Locale;
+  localeTag: string;
+  /** Langues préférées du système, pour afficher le choix « Système (…) ». */
+  systemLanguages: string[];
   disclaimer: string;
   preferences: Preferences;
   accounts: AccountConfig[];
   schedules: Schedule[];
   focus: FocusFile;
   trayAvailable: boolean;
-  spellcheckLanguages: string[];
+  /** F5 : langues connues de Chromium, embarquées, et dictionnaire du système. */
+  spellcheck: { available: string[]; bundled: string[]; systemDictionary: string | null; active: string[] };
   versions: { app: string; electron: string; chromium: string; node: string };
   paths: { userData: string; logs: string };
   memory: Record<string, number | null>;
   /** Navigation contextuelle ; le numéro change seulement sur demande explicite. */
-  navigationRequest?: { section: "accounts" | "focus"; accountId?: string; sequence: number } | null;
+  navigationRequest?: { section: SettingsSection; accountId?: string; sequence: number } | null;
   notices?: Notice[];
+  /** F2 */
+  downloads: DownloadEntry[];
+  /** F6, F9 : jamais de code ni d'identifiant, seulement leur présence. */
+  security: {
+    lock: { enabled: boolean; onStart: boolean; onHide: boolean; idleMinutes: number; onScreenLock: boolean };
+    secureStorage: boolean;
+    proxyCredentials: { global: boolean; accounts: Record<string, boolean> };
+  };
+  /** F9 : dernier test de connexion, par portée (« global » ou compte). */
+  proxyTests: Record<string, { ok: boolean; route: string; error?: string; running?: boolean }>;
 }
 
 // --- Commandes ------------------------------------------------------------------------
@@ -104,7 +170,11 @@ export const AccountPatchSchema = z.strictObject({
   icon: Icon.nullable().optional(),
   notifications: NotificationSettingsSchema.partial().optional(),
   scheduleId: Id.nullable().optional(),
-  autoSleepAfterMinutes: z.int().min(1).max(7 * 24 * 60).nullable().optional()
+  autoSleepAfterMinutes: z.int().min(1).max(7 * 24 * 60).nullable().optional(),
+  zoomPercent: ZoomPercentSchema.optional(),
+  permissions: AccountPermissionsSchema.partial().optional(),
+  proxyMode: AccountProxyModeSchema.optional(),
+  proxy: ProxyServerSchema.nullable().optional()
 });
 export type AccountPatch = z.infer<typeof AccountPatchSchema>;
 
@@ -117,9 +187,21 @@ export const PreferencesPatchSchema = z.strictObject({
   handleWhatsappLinks: z.boolean().optional(),
   sidebarCollapsed: z.boolean().optional(),
   askDownloadLocation: z.boolean().optional(),
-  onboardingDone: z.boolean().optional()
+  onboardingDone: z.boolean().optional(),
+  language: LanguagePreferenceSchema.optional(),
+  interfaceScale: InterfaceScaleSchema.optional(),
+  spellcheckMode: SpellcheckModeSchema.optional(),
+  downloadsHistoryDays: z.int().min(0).max(365).optional(),
+  privacyVeil: PrivacyVeilSchema.partial().optional(),
+  proxy: GlobalProxySchema.optional(),
+  trayCountStyle: TrayCountStyleSchema.optional(),
+  exclusivePlayback: z.boolean().optional()
 });
 export type PreferencesPatch = z.infer<typeof PreferencesPatchSchema>;
+
+const LockCode = z.string().max(128);
+/** Portée d'un proxy : réglage global ou identifiant d'un compte. */
+const ProxyScopeSchema = z.union([z.literal("global"), Id]);
 
 export const CommandSchema = z.discriminatedUnion("type", [
   // Fenêtre principale
@@ -139,7 +221,11 @@ export const CommandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("resolve-link"), accountId: Id.nullable() }),
   z.strictObject({ type: z.literal("reorder-accounts"), ids: z.array(Id).max(100) }),
   z.strictObject({ type: z.literal("dismiss-notice"), id: z.string().max(100) }),
-  z.strictObject({ type: z.literal("open-settings"), accountId: Id.optional() }),
+  z.strictObject({
+    type: z.literal("open-settings"),
+    accountId: Id.optional(),
+    section: z.enum(["general", "appearance", "accounts", "schedules", "focus", "files", "downloads", "security", "network", "about"]).optional()
+  }),
   // Paramètres
   z.strictObject({ type: z.literal("update-account"), id: Id, patch: AccountPatchSchema }),
   z.strictObject({ type: z.literal("clear-cache"), id: Id }),
@@ -151,7 +237,35 @@ export const CommandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("delete-focus-profile"), id: Id }),
   z.strictObject({ type: z.literal("request-delete-focus-profile"), id: Id }),
   z.strictObject({ type: z.literal("activate-focus"), profileId: Id.nullable(), minutes: z.int().min(1).max(7 * 24 * 60).nullable() }),
-  z.strictObject({ type: z.literal("open-logs") })
+  z.strictObject({ type: z.literal("open-logs") }),
+  // F1
+  z.strictObject({ type: z.literal("zoom"), id: Id.optional(), action: z.enum(["in", "out", "reset"]) }),
+  // F14
+  z.strictObject({ type: z.literal("media-control"), id: Id, action: z.enum(["pause", "play"]) }),
+  // F2
+  z.strictObject({ type: z.literal("download-open"), id: Id }),
+  z.strictObject({ type: z.literal("download-show"), id: Id }),
+  z.strictObject({ type: z.literal("download-remove"), id: Id }),
+  z.strictObject({ type: z.literal("downloads-clear") }),
+  // F3
+  z.strictObject({ type: z.literal("create-diagnostic-report") }),
+  z.strictObject({ type: z.literal("report-problem") }),
+  // F6
+  z.strictObject({ type: z.literal("lock-now") }),
+  z.strictObject({ type: z.literal("unlock"), code: LockCode }),
+  z.strictObject({ type: z.literal("forgot-lock-code") }),
+  z.strictObject({ type: z.literal("set-lock-code"), current: LockCode.nullable(), next: LockCode }),
+  z.strictObject({ type: z.literal("disable-lock"), current: LockCode }),
+  z.strictObject({
+    type: z.literal("set-lock-options"),
+    options: z.strictObject({ onStart: z.boolean(), onHide: z.boolean(), idleMinutes: z.int().min(0).max(24 * 60), onScreenLock: z.boolean() }).partial()
+  }),
+  // F7
+  z.strictObject({ type: z.literal("toggle-veil") }),
+  // F9
+  z.strictObject({ type: z.literal("set-proxy-credentials"), scope: ProxyScopeSchema, username: z.string().max(255), password: z.string().max(255) }),
+  z.strictObject({ type: z.literal("clear-proxy-credentials"), scope: ProxyScopeSchema }),
+  z.strictObject({ type: z.literal("test-proxy"), scope: ProxyScopeSchema })
 ]);
 export type Command = z.infer<typeof CommandSchema>;
 
@@ -168,7 +282,9 @@ export const NotifyPayloadSchema = z.strictObject({
     .string()
     .max(350_000)
     .regex(/^data:image\/(png|jpeg|webp|gif);base64,/)
-    .nullable()
+    .nullable(),
+  /** F10 : photo servie par un autre domaine, téléchargée par le processus principal. */
+  iconUrl: z.string().max(2048).regex(/^https?:\/\//).nullable()
 });
 export type NotifyPayload = z.infer<typeof NotifyPayloadSchema>;
 
@@ -194,6 +310,18 @@ export const EnvPayloadSchema = z.strictObject({
   scriptsBeforeOverride: z.int().min(0)
 });
 export type EnvPayload = z.infer<typeof EnvPayloadSchema>;
+
+/** F14 : lecture observée par le preload (API standard des médias, niveau 1). */
+export const PlaybackPayloadSchema = z.strictObject({
+  state: z.enum(["playing", "paused", "ended"]),
+  kind: z.enum(["audio", "video"]),
+  title: z.string().max(300).nullable(),
+  startedVisible: z.boolean()
+});
+export type PlaybackPayload = z.infer<typeof PlaybackPayloadSchema>;
+
+export const VeilRevealPayloadSchema = z.strictObject({ kind: z.enum(["hover", "click"]) });
+export const AdapterCheckPayloadSchema = z.strictObject({ messageBlur: z.boolean() });
 
 export const VisibilityPayloadSchema = z.strictObject({
   state: z.enum(["visible", "hidden"]),

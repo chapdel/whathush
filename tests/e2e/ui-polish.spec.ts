@@ -86,7 +86,7 @@ test("réseau, badge désactivé et notices dans la sidebar compacte", async () 
       id: "ui-notice", level: "info", message: "Un compte peut être mis en veille.", sticky: true,
       action: { label: "Mettre en veille", command: { type: "sleep-account", id: accountId } }
     }), id);
-    await h.shell.getByRole("button", { name: /informations à consulter/ }).click();
+    await h.shell.getByRole("button", { name: /informations? à consulter/ }).click();
     await expect(h.shell.getByRole("dialog")).toContainText("Un compte peut être mis en veille.");
     await h.shell.getByRole("button", { name: "Mettre en veille", exact: true }).click();
     await waitForAccount(h.app, "Personnel", (account) => account.lifecycle === "sleeping");

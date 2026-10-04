@@ -32,6 +32,12 @@ export class CallCoordinator extends EventEmitter<{ changed: [] }> {
     return false;
   }
 
+  /** F7 : un partage d'écran est en cours (dans n'importe quel compte). */
+  sharingScreen(): boolean {
+    for (const page of this.pages.values()) if ((page.counts.get("getDisplayMedia:video") ?? 0) > 0) return true;
+    return false;
+  }
+
   /** Comptes en appel, pour la règle « 1 appel actif à la fois ». */
   accountsInCall(): string[] {
     return [...new Set([...this.pages.values()].map((page) => page.accountId))].filter((id) => this.inCall(id));

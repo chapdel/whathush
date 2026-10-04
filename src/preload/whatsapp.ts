@@ -1,17 +1,31 @@
 // Preload injecté dans chaque vue WhatsApp (sandbox + contextIsolation).
 // - Niveau 1 (§35) : encapsule Notification, getUserMedia et getDisplayMedia dans
-//   le main world, avant le code de la page (vérifié au Lab).
+//   le main world, avant le code de la page (vérifié au Lab) ; observe la lecture
+//   des éléments audio et vidéo (F14) par l'API standard des médias.
 // - Niveau 3, isolé : l'adaptateur lit l'écran de liaison pour détecter QR et
-//   déconnexion (lecture seule, sélecteurs regroupés ci-dessous).
+//   déconnexion (lecture seule, sélecteurs regroupés ci-dessous) et vérifie les
+//   repères du flou des messages (F7b).
 // Le compte n'est jamais transmis : le processus principal le déduit de l'expéditeur.
+// Son nom non plus n'entre jamais dans la page (WhatsApp pourrait le lire).
 
 import { contextBridge, ipcRenderer, webFrame } from "electron";
 import { CHANNELS } from "../shared/channels";
 
 const BRIDGE_NAME = "__whathushBridge";
 
+// Textes des métadonnées de lecture (« Message vocal »), dans la langue de l'application.
+let labels: { voiceMessage: string; video: string; product: string } | null = null;
+void ipcRenderer.invoke(CHANNELS.waLabels).then((value: typeof labels) => {
+  labels = value;
+});
+
 contextBridge.exposeInMainWorld(BRIDGE_NAME, {
   notify: (payload: unknown) => ipcRenderer.send(CHANNELS.waNotify, payload),
+  playback: (payload: unknown) => ipcRenderer.send(CHANNELS.waMediaPlayback, payload),
+  labels: () => labels,
+  onMediaControl: (callback: (action: string) => void) => {
+    ipcRenderer.on(CHANNELS.waMediaControl, (_event, action: string) => callback(action));
+  },
   close: (id: number) => ipcRenderer.send(CHANNELS.waNotificationClose, id),
   media: (payload: unknown) => ipcRenderer.send(CHANNELS.waMedia, payload),
   swNotification: () => ipcRenderer.send(CHANNELS.waSwNotification),
@@ -28,9 +42,21 @@ function installMainWorldHooks(bridgeName: string): void {
   const scriptsBeforeOverride = document.scripts.length;
   const MAX_ICON_BYTES = 256 * 1024;
 
+  // F10 : une photo servie par une autre origine (pps.whatsapp.net) n'est pas lisible
+  // ici (CORS) ; son adresse est transmise et le processus principal la télécharge.
+  function crossOrigin(source: string): boolean {
+    try {
+      const url = new URL(source, location.href);
+      return (url.protocol === "https:" || url.protocol === "http:") && url.origin !== location.origin;
+    } catch {
+      return false;
+    }
+  }
+
   async function iconToDataUrl(source: string): Promise<string | null> {
     if (!source) return null;
     if (/^data:image\/(png|jpeg|webp|gif);base64,/.test(source)) return source.length < 350_000 ? source : null;
+    if (crossOrigin(source)) return null;
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 1000);
@@ -101,7 +127,8 @@ function installMainWorldHooks(bridgeName: string): void {
       void iconToDataUrl(this.icon).then((icon) => {
         // Fermée (ou remplacée par tag) pendant le chargement de l'icône : rien à afficher.
         if (!live.has(this.proxyId)) return;
-        bridge.notify({ id: this.proxyId, title: this.title, body: this.body, tag: this.tag, silent: this.silent, icon });
+        const iconUrl = !icon && this.icon && crossOrigin(this.icon) ? new URL(this.icon, location.href).href.slice(0, 2048) : null;
+        bridge.notify({ id: this.proxyId, title: this.title, body: this.body, tag: this.tag, silent: this.silent, icon, iconUrl });
         this.fire("show");
       });
     }
@@ -170,6 +197,85 @@ function installMainWorldHooks(bridgeName: string): void {
     }
   }
 
+  // --- Lecture des médias (F14) ---------------------------------------------------------
+  // Les éléments hors du DOM (new Audio()) ne remontent pas leurs événements jusqu'au
+  // document : play() est aussi encapsulé. Les sons courts (notification, < 2,5 s) et en
+  // boucle (sonnerie) ne sont pas des lectures.
+  const watched = new WeakSet<HTMLMediaElement>();
+  const playing = new Set<HTMLMediaElement>();
+  let lastPaused: HTMLMediaElement | null = null;
+  let ourMetadata: MediaMetadata | null = null;
+  const isReading = (element: HTMLMediaElement): boolean => !element.loop && !(Number.isFinite(element.duration) && element.duration < 2.5);
+  const kindOf = (element: HTMLMediaElement): "audio" | "video" => (element instanceof HTMLVideoElement && element.videoWidth > 0 ? "video" : "audio");
+  const pageTitle = (): string | null => {
+    try {
+      const metadata = navigator.mediaSession?.metadata;
+      return metadata && metadata !== ourMetadata && metadata.title ? String(metadata.title).slice(0, 300) : null;
+    } catch {
+      return null;
+    }
+  };
+  const reportPlayback = (element: HTMLMediaElement, state: "playing" | "paused" | "ended"): void => {
+    if (!isReading(element)) return;
+    try {
+      // Bureau (MPRIS) : sans métadonnées de la page, « Message vocal — WhatHush ».
+      if (state === "playing" && navigator.mediaSession && !navigator.mediaSession.metadata) {
+        const texts = bridge.labels();
+        if (texts) {
+          ourMetadata = new MediaMetadata({ title: kindOf(element) === "video" ? texts.video : texts.voiceMessage, artist: texts.product });
+          navigator.mediaSession.metadata = ourMetadata;
+        }
+      }
+      if (state === "ended" && playing.size === 0 && ourMetadata && navigator.mediaSession?.metadata === ourMetadata) {
+        navigator.mediaSession.metadata = null;
+        ourMetadata = null;
+      }
+      bridge.playback({ state, kind: kindOf(element), title: pageTitle(), startedVisible: document.visibilityState === "visible" });
+    } catch {
+      // le suivi ne doit jamais casser la page
+    }
+  };
+  const watch = (element: HTMLMediaElement): void => {
+    if (watched.has(element)) return;
+    watched.add(element);
+    // « playing » plutôt que « play » : la lecture a vraiment commencé, la durée est
+    // connue (un son de notification court est alors reconnu).
+    element.addEventListener("playing", () => {
+      playing.add(element);
+      reportPlayback(element, "playing");
+    });
+    element.addEventListener("pause", () => {
+      playing.delete(element);
+      if (element.ended) return;
+      lastPaused = element;
+      reportPlayback(element, "paused");
+    });
+    element.addEventListener("ended", () => {
+      playing.delete(element);
+      if (lastPaused === element) lastPaused = null;
+      reportPlayback(element, "ended");
+    });
+  };
+  // Phase de capture : l'élément est suivi avant que sa lecture ne commence vraiment.
+  document.addEventListener(
+    "play",
+    (event) => {
+      if (event.target instanceof HTMLMediaElement) watch(event.target);
+    },
+    true
+  );
+  const mediaProto = HTMLMediaElement.prototype as any;
+  const originalPlay = mediaProto.play;
+  mediaProto.play = function (this: HTMLMediaElement, ...args: unknown[]) {
+    watch(this);
+    return originalPlay.apply(this, args);
+  };
+  // Pause / Reprendre depuis la barre latérale ou le tray : API standard, aucun sélecteur.
+  bridge.onMediaControl((action: string) => {
+    if (action === "pause") for (const element of [...playing]) element.pause();
+    else if (action === "play" && lastPaused) void lastPaused.play().catch(() => undefined);
+  });
+
   bridge.env({
     userAgent: navigator.userAgent,
     notificationOverridden: (window as any).Notification === ProxyNotification,
@@ -226,4 +332,42 @@ function scheduleLinkState(): void {
 window.addEventListener("DOMContentLoaded", () => {
   new MutationObserver(scheduleLinkState).observe(document.documentElement, { childList: true, subtree: true });
   scheduleLinkState();
+});
+
+// --- Voile de confidentialité (F7) --------------------------------------------------------
+// Le flou est appliqué par le processus principal (CSS inséré) ; ici, on signale
+// seulement le premier survol ou clic pendant le voile. Pendant un partage d'écran
+// (strict), seul un clic dévoile.
+let veil = { veiled: false, strict: false, blurMessages: false };
+let revealSent = false;
+ipcRenderer.on(CHANNELS.waVeil, (_event, state: typeof veil) => {
+  veil = state;
+  revealSent = false;
+  if (veil.blurMessages) scheduleAdapterCheck();
+});
+function onPointer(kind: "hover" | "click"): void {
+  if (!veil.veiled || revealSent || (veil.strict && kind !== "click")) return;
+  revealSent = true;
+  ipcRenderer.send(CHANNELS.waVeilReveal, { kind });
+}
+// Seuls les gestes réels comptent : un événement fabriqué par la page ne dévoile rien.
+window.addEventListener("pointermove", (event) => event.isTrusted && onPointer("hover"), { capture: true, passive: true });
+window.addEventListener("pointerdown", (event) => event.isTrusted && onPointer("click"), { capture: true, passive: true });
+
+// F7b, expérimental : les repères du flou des messages existent-ils encore ? Relevé une
+// fois les conversations affichées ; sans correspondance, la fonction se désactive.
+const MESSAGE_BLUR_SELECTORS = ['#pane-side [data-testid="cell-frame-secondary"]', "[data-pre-plain-text]"].join(",");
+let adapterChecked = false;
+let adapterTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleAdapterCheck(): void {
+  if (adapterChecked || adapterTimer || !veil.blurMessages) return;
+  adapterTimer = setTimeout(() => {
+    adapterTimer = null;
+    if (adapterChecked || document.querySelector(CHATS_SELECTORS) === null) return;
+    adapterChecked = true;
+    ipcRenderer.send(CHANNELS.waAdapterCheck, { messageBlur: document.querySelector(MESSAGE_BLUR_SELECTORS) !== null });
+  }, 3000);
+}
+window.addEventListener("DOMContentLoaded", () => {
+  new MutationObserver(() => scheduleAdapterCheck()).observe(document.documentElement, { childList: true, subtree: true });
 });

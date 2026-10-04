@@ -23,6 +23,14 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   # Tray (§21) : StatusNotifierItem.
   - --talk-name=org.kde.StatusNotifierWatcher
+  # Verrouillage avec la session (F6) : économiseur d'écran et logind, en écoute seulement.
+  - --talk-name=org.freedesktop.ScreenSaver
+  - --talk-name=org.gnome.ScreenSaver
+  - --system-talk-name=org.freedesktop.login1
+  # Identifiants de proxy chiffrés (F9) : trousseau du système via safeStorage.
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.kde.kwalletd6
+  - --talk-name=org.kde.kwalletd5
   - --filesystem=xdg-download
   # Wayland natif avec saisie IME (§25).
   - --env=ELECTRON_OZONE_PLATFORM_HINT=auto
@@ -32,7 +40,7 @@ modules:
     buildsystem: simple
     sources:
       - type: archive
-        path: ../../release/whathush-0.1.0.tar.gz
+        path: ../../release/whathush-0.2.0.tar.gz
         dest: app
       - type: file
         path: ../linux/io.github.chapdel.mcdesk.desktop

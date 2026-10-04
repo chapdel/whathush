@@ -17,14 +17,15 @@ export const MAX_ACCOUNTS = 50;
 export const LABEL_MAX_LENGTH = 40;
 /** Indigo du logo. Toute la palette garde un contraste ≥ 4,5:1 avec des initiales blanches. */
 export const DEFAULT_ACCOUNT_COLOR = "#5a5fc4";
+/** name : suffixe de la clé de traduction « color.<name> ». */
 export const ACCOUNT_COLORS = [
-  { value: DEFAULT_ACCOUNT_COLOR, name: "Indigo" },
-  { value: "#4f7593", name: "Bleu" },
-  { value: "#7f6690", name: "Prune" },
-  { value: "#8f6c45", name: "Sable" },
-  { value: "#8f5d67", name: "Rose" },
-  { value: "#4a6f65", name: "Sauge" },
-  { value: "#5f6d55", name: "Olive" }
+  { value: DEFAULT_ACCOUNT_COLOR, name: "indigo" },
+  { value: "#4f7593", name: "blue" },
+  { value: "#7f6690", name: "plum" },
+  { value: "#8f6c45", name: "sand" },
+  { value: "#8f5d67", name: "rose" },
+  { value: "#4a6f65", name: "sage" },
+  { value: "#5f6d55", name: "olive" }
 ] as const;
 
 /** Largeur de la barre latérale, partagée par la mise en page des vues et l'UI. */

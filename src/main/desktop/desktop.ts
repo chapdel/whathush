@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { t } from "../../shared/i18n";
 import { APP_ID, EXECUTABLE_NAME, PRODUCT_NAME } from "../../shared/identity";
 import type { Logger } from "../log";
 
@@ -77,7 +78,8 @@ async function applyLaunchAtLogin(enabled: boolean, log: Logger): Promise<boolea
     // La commande est celle du manifeste Flatpak (`command: whathush`), pas l'identifiant.
     // Le portail répond de façon asynchrone (signal Response) : un refus de
     // l'utilisateur n'est pas détecté ici.
-    const options = `{'reason': <'Démarrer ${PRODUCT_NAME} à l’ouverture de session'>, 'autostart': <${enabled}>, 'commandline': <['${EXECUTABLE_NAME}', '--hidden']>, 'dbus-activatable': <false>}`;
+    const reason = t("autostart.reason", { product: PRODUCT_NAME }).replace(/['\\]/g, "");
+    const options = `{'reason': <'${reason}'>, 'autostart': <${enabled}>, 'commandline': <['${EXECUTABLE_NAME}', '--hidden']>, 'dbus-activatable': <false>}`;
     const result = await run("gdbus", [
       "call",
       "--session",
@@ -173,7 +175,7 @@ export function attachContextMenu(webContents: WebContents, options: { devTools:
         items.push({ label: suggestion, click: () => webContents.replaceMisspelling(suggestion) });
       }
       items.push({
-        label: "Ajouter au dictionnaire",
+        label: t("context.addToDictionary"),
         click: () => webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
       });
       items.push({ type: "separator" });
@@ -181,37 +183,39 @@ export function attachContextMenu(webContents: WebContents, options: { devTools:
 
     if (params.isEditable) {
       items.push(
-        { role: "undo", label: "Annuler", enabled: params.editFlags.canUndo },
-        { role: "redo", label: "Rétablir", enabled: params.editFlags.canRedo },
+        { role: "undo", label: t("context.undo"), enabled: params.editFlags.canUndo },
+        { role: "redo", label: t("context.redo"), enabled: params.editFlags.canRedo },
         { type: "separator" },
-        { role: "cut", label: "Couper", enabled: params.editFlags.canCut },
-        { role: "copy", label: "Copier", enabled: params.editFlags.canCopy },
-        { role: "paste", label: "Coller", enabled: params.editFlags.canPaste },
-        { role: "selectAll", label: "Tout sélectionner" }
+        { role: "cut", label: t("context.cut"), enabled: params.editFlags.canCut },
+        { role: "copy", label: t("context.copy"), enabled: params.editFlags.canCopy },
+        { role: "paste", label: t("context.paste"), enabled: params.editFlags.canPaste },
+        // F13 : sans la mise en forme de la source (Ctrl+Maj+V, géré par Chromium).
+        { label: t("context.pastePlain"), accelerator: "CommandOrControl+Shift+V", enabled: params.editFlags.canPaste, click: () => webContents.pasteAndMatchStyle() },
+        { role: "selectAll", label: t("context.selectAll") }
       );
     } else if (params.selectionText) {
-      items.push({ role: "copy", label: "Copier" });
+      items.push({ role: "copy", label: t("context.copy") });
     }
 
     if (params.mediaType === "image" && params.srcURL) {
       if (items.length > 0) items.push({ type: "separator" });
       items.push(
-        { label: "Copier l’image", click: () => webContents.copyImageAt(params.x, params.y) },
-        { label: "Enregistrer l’image…", click: () => webContents.downloadURL(params.srcURL) }
+        { label: t("context.copyImage"), click: () => webContents.copyImageAt(params.x, params.y) },
+        { label: t("context.saveImage"), click: () => webContents.downloadURL(params.srcURL) }
       );
     }
 
     if (params.linkURL) {
       if (items.length > 0) items.push({ type: "separator" });
       items.push(
-        { label: "Copier le lien", click: () => clipboard.writeText(params.linkURL) },
-        { label: "Ouvrir le lien", click: () => options.openLink(params.linkURL) }
+        { label: t("context.copyLink"), click: () => void clipboard.writeText(params.linkURL).catch(() => undefined) },
+        { label: t("context.openLink"), click: () => options.openLink(params.linkURL) }
       );
     }
 
     if (options.devTools) {
       if (items.length > 0) items.push({ type: "separator" });
-      items.push({ label: "Inspecter l’élément", click: () => webContents.inspectElement(params.x, params.y) });
+      items.push({ label: t("context.inspect"), click: () => webContents.inspectElement(params.x, params.y) });
     }
 
     if (items.length > 0) Menu.buildFromTemplate(items).popup();

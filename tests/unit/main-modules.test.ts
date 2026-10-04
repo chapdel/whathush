@@ -24,6 +24,8 @@ const item = (overrides: Partial<AccountItem> = {}): AccountItem => ({
   inCall: false,
   audible: false,
   memoryMB: null,
+  zoomPercent: 100,
+  playback: null,
   ...overrides
 });
 
@@ -141,6 +143,8 @@ describe("menus natifs (§18, §21)", () => {
   it("construit le menu du tray avec l'état de chaque compte", () => {
     const state: ShellState = {
       productName: "WhatHush",
+      language: "fr",
+      localeTag: "fr-FR",
       accounts: [item(), item({ id: "c41f7751-2c3d-4e4f-9a51-2b3c4d5e6f70", label: "Support", lifecycle: "sleeping", unread: null })],
       activeId: ID,
       totalUnread: 4,
@@ -149,7 +153,12 @@ describe("menus natifs (§18, §21)", () => {
       onboardingDone: true,
       pendingLink: null,
       notices: [],
-      trayAvailable: true
+      trayAvailable: true,
+      lock: { enabled: false, locked: false, retryAt: null, failed: false },
+      veiled: false,
+      nowPlaying: null,
+      downloads: { active: 0, progress: null },
+      zoomToast: null
     };
     const menu = labels(trayMenu(state, NOW));
     expect(menu[0]).toBe("WhatHush");
@@ -171,11 +180,14 @@ describe("contrat IPC (§26)", () => {
   });
 
   it("borne les notifications reçues des pages", () => {
-    const parsed = NotifyPayloadSchema.parse({ id: 1, title: "x".repeat(400), body: "y".repeat(5000), tag: "", silent: false, icon: null });
+    const parsed = NotifyPayloadSchema.parse({ id: 1, title: "x".repeat(400), body: "y".repeat(5000), tag: "", silent: false, icon: null, iconUrl: null });
     expect(parsed.title).toHaveLength(200);
     expect(parsed.body).toHaveLength(2000);
-    expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: "javascript:alert(1)" }).success).toBe(false);
-    expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: "data:image/svg+xml;base64,AAAA" }).success).toBe(false);
+    expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: "javascript:alert(1)", iconUrl: null }).success).toBe(false);
+    expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: "data:image/svg+xml;base64,AAAA", iconUrl: null }).success).toBe(false);
+    // F10 : seule une adresse http(s) est transmise ; l'hôte est vérifié par le processus principal.
+    expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: null, iconUrl: "https://pps.whatsapp.net/a.jpg" }).success).toBe(true);
+    expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: null, iconUrl: "file:///etc/passwd" }).success).toBe(false);
   });
 });
 

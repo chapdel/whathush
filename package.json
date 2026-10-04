@@ -1,6 +1,6 @@
 {
   "name": "whathush",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Client desktop Linux multi-comptes pour WhatsApp Web (projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms)",
   "type": "module",

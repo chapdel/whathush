@@ -17,11 +17,12 @@ export interface Harness {
   shell: Page;
   userData: string;
   fakeUrl: string;
+  avatarOrigin: string;
   close(): Promise<void>;
 }
 
-export async function launch(options: { userData?: string; fakeUrl?: string; platform?: "headless" | "wayland" | "x11"; scaleFactor?: number; screenSize?: string; tray?: boolean } = {}): Promise<Harness & { stopFake(): void }> {
-  const fake = options.fakeUrl ? { url: options.fakeUrl, close: () => undefined } : await startFakeWhatsApp();
+export async function launch(options: { userData?: string; fakeUrl?: string; platform?: "headless" | "wayland" | "x11"; scaleFactor?: number; screenSize?: string; tray?: boolean; systemLanguage?: "fr" | "en"; env?: Record<string, string> } = {}): Promise<Harness & { stopFake(): void }> {
+  const fake: { url: string; avatarOrigin?: string; close(): void } = options.fakeUrl ? { url: options.fakeUrl, close: () => undefined } : await startFakeWhatsApp();
   const userData = options.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), "whathush-e2e-"));
   const app = await electron.launch({
     args: [root, `--ozone-platform=${options.platform ?? "headless"}`, `--ozone-override-screen-size=${options.screenSize ?? "1440,920"}`, ...(options.scaleFactor ? [`--force-device-scale-factor=${options.scaleFactor}`] : [])],
@@ -30,21 +31,38 @@ export async function launch(options: { userData?: string; fakeUrl?: string; pla
       WHATHUSH_TEST: "1",
       WHATHUSH_TARGET_URL: fake.url,
       WHATHUSH_USER_DATA: userData,
-      WHATHUSH_TRAY: options.tray ? "1" : "0"
+      WHATHUSH_TRAY: options.tray ? "1" : "0",
+      ...(fake.avatarOrigin ? { WHATHUSH_TEST_AVATAR_ORIGIN: fake.avatarOrigin } : {}),
+      // Langue du système vue par l'application (F12) : le français, sauf demande.
+      ...(options.systemLanguage === "en" ? { LANGUAGE: "en_US:en", LANG: "en_US.UTF-8" } : { LANGUAGE: "fr_FR:fr", LANG: "fr_FR.UTF-8" }),
+      LC_ALL: "",
+      ...options.env
     }
   });
-  const shell = await app.firstWindow();
+  // La coque, et pas une vue WhatsApp qui aurait été signalée avant elle.
+  const shell = await shellPage(app);
   await shell.waitForLoadState("domcontentloaded");
   return {
     app,
     shell,
     userData,
     fakeUrl: fake.url,
+    avatarOrigin: fake.avatarOrigin ?? "",
     stopFake: () => fake.close(),
     close: async () => {
       await app.close();
     }
   };
+}
+
+async function shellPage(app: ElectronApplication): Promise<Page> {
+  const deadline = Date.now() + 30_000;
+  for (;;) {
+    const page = app.windows().find((candidate) => candidate.url().startsWith("app://renderer/index.html"));
+    if (page) return page;
+    if (Date.now() > deadline) throw new Error("fenêtre principale introuvable");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }
 
 export async function state(app: ElectronApplication): Promise<ShellState> {
@@ -153,7 +171,8 @@ export async function pressShortcut(app: ElectronApplication, target: string, ke
   await app.evaluate(
     ({ BrowserWindow }, input) => {
       const application = (globalThis as any).__whathush;
-      const wc = input.target === "shell" ? BrowserWindow.getAllWindows()[0]?.webContents : application.viewsManager().webContents(input.target);
+      // La fenêtre principale par son adresse : une popup peut être la première de la liste.
+      const wc = input.target === "shell" ? BrowserWindow.getAllWindows().find((window) => window.webContents.getURL().startsWith("app://renderer/index.html"))?.webContents : application.viewsManager().webContents(input.target);
       wc.sendInputEvent({ type: "keyDown", keyCode: input.keyCode, modifiers: input.modifiers });
       wc.sendInputEvent({ type: "keyUp", keyCode: input.keyCode, modifiers: input.modifiers });
     },
