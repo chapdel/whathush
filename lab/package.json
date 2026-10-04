@@ -1,0 +1,23 @@
+{
+  "name": "feasibility-lab",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Feasibility Lab (phase 0) — prototype jetable pour valider la matrice du §40",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "npm run build && electron .",
+    "start:wayland": "npm run build && electron . --ozone-platform=wayland --enable-wayland-ime",
+    "start:x11": "npm run build && electron . --ozone-platform=x11",
+    "start:fake": "npm run build && LAB_FAKE=1 electron .",
+    "smoke": "npm run build && node scripts/run-isolated.mjs smoke --ozone-platform=headless",
+    "smoke:visible": "npm run build && node scripts/run-isolated.mjs smoke",
+    "typecheck": "tsc -p . --noEmit",
+    "probe": "npm run build && node scripts/run-isolated.mjs probe --ozone-platform=headless"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "electron": "44.5.1",
+    "typescript": "7.0.2"
+  }
+}

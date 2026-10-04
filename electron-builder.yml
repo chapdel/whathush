@@ -1,0 +1,83 @@
+# Packaging Linux (§41) : AppImage, .deb, .rpm, archive tar.gz (base du paquet AUR
+# et du manifeste Flatpak). Rien n'est publié : `publish: null`.
+
+appId: io.github.chapdel.mcdesk
+productName: WhatHush
+executableName: whathush
+copyright: "© 2026 chapdel — projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms"
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - "!dist/**/*.map"
+  - package.json
+
+# §26 : fuses Electron, appliquées au binaire empaqueté.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
+
+linux:
+  target:
+    - AppImage
+    - deb
+    - rpm
+    - tar.gz
+  # Catégories complètes : electron-builder écrase Categories avec cette valeur.
+  category: Network;InstantMessaging;Chat
+  icon: build/icons
+  syncDesktopName: true
+  # §23 : déclaré ; l'option « liens whatsapp:// » des paramètres en fait le choix par défaut.
+  mimeTypes:
+    - x-scheme-handler/whatsapp
+  maintainer: chapdel <iamchapdel@gmail.com>
+  vendor: chapdel
+  synopsis: Client multi-comptes pour WhatsApp Web
+  # Sert aussi de Comment dans l'entrée de bureau : rester court.
+  description: Plusieurs comptes WhatsApp Web côte à côte, avec Snooze, Focus et veille profonde. Projet indépendant, non affilié à WhatsApp ni à Meta.
+  desktop:
+    entry:
+      GenericName: Messagerie multi-comptes
+      Keywords: whatsapp;messagerie;chat;multi-comptes;snooze;
+
+appImage:
+  artifactName: ${productName}-${version}-${arch}.AppImage
+
+deb:
+  artifactName: ${name}_${version}_${arch}.deb
+  depends:
+    - libgtk-3-0 | libgtk-3-0t64
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0 | libatspi2.0-0t64
+    - libuuid1
+    - libsecret-1-0
+  recommends:
+    - pipewire
+    - xdg-desktop-portal
+
+rpm:
+  artifactName: ${name}-${version}.${arch}.rpm
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - libXtst
+    - xdg-utils
+    - at-spi2-core
+    - libuuid
+    - libsecret
+
+publish: null

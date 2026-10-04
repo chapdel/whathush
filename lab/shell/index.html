@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+  <title>Feasibility Lab</title>
+  <link rel="stylesheet" href="shell.css">
+</head>
+<body>
+  <aside id="sidebar">
+    <header>
+      <strong>Feasibility Lab</strong>
+      <small id="platform"></small>
+    </header>
+
+    <form id="add-form">
+      <input id="add-label" placeholder="Nom du compte" maxlength="40" autocomplete="off">
+      <button type="submit">Ajouter</button>
+    </form>
+
+    <ul id="accounts"></ul>
+
+    <section id="actions" hidden>
+      <h2 id="actions-title"></h2>
+      <div class="grid">
+        <button data-action="sleep-toggle"></button>
+        <button data-action="reload">Recharger</button>
+        <button data-action="snooze"></button>
+        <button data-action="devtools">DevTools</button>
+        <button data-action="crash" title="Reprise après crash (§32)">Simuler crash</button>
+        <button data-action="remove" class="danger">Supprimer</button>
+      </div>
+    </section>
+
+    <footer>
+      <div id="totals"></div>
+      <div class="grid">
+        <button id="toggle-logs"></button>
+        <button id="open-logs">Dossier des logs</button>
+      </div>
+      <small>Ctrl+1…9 / Ctrl+Tab : changer de compte · F12 : DevTools</small>
+    </footer>
+  </aside>
+
+  <main id="stage">
+    <div id="placeholder"></div>
+  </main>
+
+  <section id="logs">
+    <ol id="log-lines"></ol>
+  </section>
+
+  <script src="shell.js"></script>
+</body>
+</html>

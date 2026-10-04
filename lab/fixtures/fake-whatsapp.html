@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>WhatsApp</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 24px; background: #f0f2f5; color: #111b21; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    p { margin: 0 0 16px; color: #54656f; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    button, a.button { padding: 8px 12px; border: 1px solid #d1d7db; border-radius: 6px; background: #fff; cursor: pointer; color: inherit; text-decoration: none; }
+    pre { background: #fff; border: 1px solid #d1d7db; border-radius: 6px; padding: 12px; height: 320px; overflow: auto; margin: 0; }
+  </style>
+</head>
+<body>
+  <h1>Fausse page WhatsApp</h1>
+  <p id="info"></p>
+  <div class="buttons">
+    <button id="notify">Notification</button>
+    <button id="call">Notification d’appel</button>
+    <button id="unread">+1 non-lu</button>
+    <button id="mic">Micro</button>
+    <button id="cam">Caméra</button>
+    <button id="screen">Partage d’écran</button>
+    <button id="stop">Arrêter les pistes</button>
+    <button id="sound">Son 3 s</button>
+    <button id="popup">Popup même origine</button>
+    <a class="button" href="https://example.com/" target="_blank">Lien externe</a>
+    <a class="button" href="file:///etc/passwd" target="_blank">Lien file:// (doit être bloqué)</a>
+  </div>
+  <pre id="events"></pre>
+
+  <script>
+    // Identifiant propre à la partition : sert à vérifier l'isolation et la persistance.
+    if (!localStorage.getItem("labPageId")) localStorage.setItem("labPageId", crypto.randomUUID());
+
+    const events = document.getElementById("events");
+    const logEvent = (message) => {
+      events.textContent = `${new Date().toLocaleTimeString()}  ${message}\n` + events.textContent;
+    };
+
+    let unread = 0;
+    const setUnread = (count) => {
+      unread = count;
+      document.title = count > 0 ? `(${count}) WhatsApp` : "WhatsApp";
+    };
+
+    const notify = (title, body, tag) => {
+      const notification = new Notification(title, { body, tag });
+      notification.onclick = () => {
+        logEvent(`clic reçu sur « ${title} »`);
+        setUnread(0);
+      };
+      logEvent(`notification créée : ${title}`);
+    };
+
+    let streams = [];
+    const capture = async (label, promise) => {
+      try {
+        const stream = await promise;
+        streams.push(stream);
+        logEvent(`${label} : ${stream.getTracks().map((t) => t.kind).join(", ")}`);
+      } catch (error) {
+        logEvent(`${label} refusé : ${error.name}`);
+      }
+    };
+
+    document.getElementById("notify").onclick = () => notify("Marc", "Tu peux vérifier le fichier ?", "chat-marc");
+    document.getElementById("call").onclick = () => notify("Paul", "Appel vocal entrant", "call-paul");
+    document.getElementById("unread").onclick = () => setUnread(unread + 1);
+    document.getElementById("mic").onclick = () => capture("micro", navigator.mediaDevices.getUserMedia({ audio: true }));
+    document.getElementById("cam").onclick = () => capture("caméra", navigator.mediaDevices.getUserMedia({ video: true }));
+    document.getElementById("screen").onclick = () => capture("écran", navigator.mediaDevices.getDisplayMedia({ video: true }));
+    document.getElementById("stop").onclick = () => {
+      streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
+      streams = [];
+      logEvent("pistes arrêtées");
+    };
+    document.getElementById("sound").onclick = () => {
+      const context = new AudioContext();
+      const oscillator = context.createOscillator();
+      oscillator.connect(context.destination);
+      oscillator.start();
+      setTimeout(() => { oscillator.stop(); context.close(); }, 3000);
+      logEvent("son joué 3 s");
+    };
+    document.getElementById("popup").onclick = () => window.open("/popup", "_blank", "width=480,height=360");
+
+    document.addEventListener("visibilitychange", () => logEvent(`visibilité : ${document.visibilityState}`));
+
+    const info = document.getElementById("info");
+    info.textContent = `Notification.permission = ${Notification.permission} · visibilité = ${document.visibilityState}`;
+
+    // Scénario automatique utilisé par le smoke test.
+    setTimeout(() => setUnread(3), 300);
+    setTimeout(() => notify("Marc", "Tu peux vérifier le fichier ?", "chat-marc"), 800);
+  </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+# Maintainer: chapdel <iamchapdel@gmail.com>
+#
+# Paquet AUR « -bin » (§41) : réempaquette l'archive tar.gz publiée par electron-builder.
+# Avant publication : publier la release, mettre à jour pkgver et les sommes (updpkgsums).
+
+pkgname=whathush-bin
+_appid=io.github.chapdel.mcdesk
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Plusieurs comptes WhatsApp Web côte à côte, avec Snooze, Focus et veille profonde (non affilié à WhatsApp ni à Meta)"
+arch=('x86_64')
+url="https://github.com/chapdel/whathush"
+license=('LicenseRef-proprietary')
+depends=('gtk3' 'libnotify' 'nss' 'libxss' 'libxtst' 'xdg-utils' 'at-spi2-core' 'util-linux-libs' 'libsecret' 'alsa-lib')
+optdepends=('pipewire: partage d’écran sous Wayland'
+            'xdg-desktop-portal: sélecteur de partage d’écran'
+            'libappindicator-gtk3: icône dans la zone de notification')
+provides=('whathush')
+conflicts=('whathush')
+options=('!strip' '!debug')
+source=("whathush-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/whathush-${pkgver}.tar.gz"
+        "${_appid}.desktop"
+        "${_appid}.metainfo.xml"
+        "${_appid}.png")
+sha256sums=('12b244dba1f4c3c053f9da05406e369363a3ee41da4a7e401f4367e9de68054c'
+            '579deeb903a72aaf80f19aa8411a34be7703792d0be27905359b967dc104bcfd'
+            '1487f5d8c29ef71680ac38cc1e9fc18c1296a810bcc89d67a331096f37fc6482'
+            '1cae46e4c22a84c4735cac999c458bb94ebb844a511ed410b16c26e4b08a81c7')
+
+package() {
+  install -d "${pkgdir}/opt/WhatHush"
+  cp -a "whathush-${pkgver}/." "${pkgdir}/opt/WhatHush/"
+  # Arch autorise les user namespaces : le bac à sable n'a pas besoin du bit SUID.
+  chmod 755 "${pkgdir}/opt/WhatHush/chrome-sandbox"
+
+  install -d "${pkgdir}/usr/bin"
+  ln -s /opt/WhatHush/whathush "${pkgdir}/usr/bin/whathush"
+
+  install -Dm644 "${_appid}.desktop" "${pkgdir}/usr/share/applications/${_appid}.desktop"
+  install -Dm644 "${_appid}.metainfo.xml" "${pkgdir}/usr/share/metainfo/${_appid}.metainfo.xml"
+  install -Dm644 "${_appid}.png" "${pkgdir}/usr/share/icons/hicolor/512x512/apps/${_appid}.png"
+}

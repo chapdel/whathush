@@ -1,0 +1,219 @@
+// Intégration bureau Linux (§21, §25) : détection du tray, lancement au démarrage,
+// gestionnaire de liens whatsapp://, menu contextuel des vues.
+
+import { app, clipboard, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebContents } from "electron";
+import { execFile } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { APP_ID, EXECUTABLE_NAME, PRODUCT_NAME } from "../../shared/identity";
+import type { Logger } from "../log";
+
+function run(command: string, args: string[], timeoutMs = 3000): Promise<{ ok: boolean; stdout: string }> {
+  return new Promise((resolve) => {
+    execFile(command, args, { timeout: timeoutMs }, (error, stdout) => resolve({ ok: !error, stdout: String(stdout) }));
+  });
+}
+
+/**
+ * §21 : GNOME sans l'extension AppIndicator n'a pas de tray. On vérifie la présence
+ * d'un StatusNotifierWatcher sur le bus de session.
+ */
+export async function isTrayAvailable(log: Logger): Promise<boolean> {
+  const result = await run("gdbus", [
+    "call",
+    "--session",
+    "--dest",
+    "org.freedesktop.DBus",
+    "--object-path",
+    "/org/freedesktop/DBus",
+    "--method",
+    "org.freedesktop.DBus.NameHasOwner",
+    "org.kde.StatusNotifierWatcher"
+  ]);
+  if (!result.ok) {
+    log.warn("tray-detection-failed");
+    return false;
+  }
+  return result.stdout.includes("true");
+}
+
+const isFlatpak = (): boolean => Boolean(process.env.FLATPAK_ID);
+
+function autostartFile(): string {
+  const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  return path.join(configHome, "autostart", `${APP_ID}.desktop`);
+}
+
+/**
+ * Argument de la clé Exec d'un fichier .desktop : toujours entre guillemets, avec
+ * \ " ` $ échappés et % doublé (spécification Desktop Entry).
+ */
+export function desktopExecArg(value: string): string {
+  return `"${value.replace(/[\\"`$]/g, (char) => `\\${char}`).replace(/%/g, "%%")}"`;
+}
+
+function launchArgs(): string[] {
+  // AppImage : le chemin de l'image, pas celui du point de montage temporaire.
+  const executable = process.env.APPIMAGE ?? process.execPath;
+  return app.isPackaged ? [executable] : [executable, app.getAppPath()];
+}
+
+/**
+ * §25 : app.setLoginItemSettings ne fonctionne pas sous Linux. Hors Flatpak, un
+ * fichier .desktop dans ~/.config/autostart ; sous Flatpak, le portail Background.
+ */
+export async function setLaunchAtLogin(enabled: boolean, log: Logger): Promise<boolean> {
+  try {
+    return await applyLaunchAtLogin(enabled, log);
+  } catch (error) {
+    log.error("autostart-failed", { enabled, error: String(error) });
+    return false;
+  }
+}
+
+async function applyLaunchAtLogin(enabled: boolean, log: Logger): Promise<boolean> {
+  if (isFlatpak()) {
+    // La commande est celle du manifeste Flatpak (`command: whathush`), pas l'identifiant.
+    // Le portail répond de façon asynchrone (signal Response) : un refus de
+    // l'utilisateur n'est pas détecté ici.
+    const options = `{'reason': <'Démarrer ${PRODUCT_NAME} à l’ouverture de session'>, 'autostart': <${enabled}>, 'commandline': <['${EXECUTABLE_NAME}', '--hidden']>, 'dbus-activatable': <false>}`;
+    const result = await run("gdbus", [
+      "call",
+      "--session",
+      "--dest",
+      "org.freedesktop.portal.Desktop",
+      "--object-path",
+      "/org/freedesktop/portal/desktop",
+      "--method",
+      "org.freedesktop.portal.Background.RequestBackground",
+      "",
+      options
+    ]);
+    log.info("autostart-portal", { enabled, ok: result.ok });
+    return result.ok;
+  }
+  const file = autostartFile();
+  if (!enabled) {
+    fs.rmSync(file, { force: true });
+    log.info("autostart", { enabled });
+    return true;
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const content = [
+    "[Desktop Entry]",
+    "Type=Application",
+    `Name=${PRODUCT_NAME}`,
+    `Exec=${[...launchArgs(), "--hidden"].map(desktopExecArg).join(" ")}`,
+    `Icon=${APP_ID}`,
+    "X-GNOME-Autostart-enabled=true",
+    "NoDisplay=false",
+    ""
+  ].join("\n");
+  fs.writeFileSync(file, content, { mode: 0o644 });
+  log.info("autostart", { enabled });
+  return true;
+}
+
+/**
+ * §23 : gestionnaire des liens whatsapp://, en option (désactivé par défaut).
+ * Les entrées de bureau des paquets déclarent le type ; l'option en fait le choix
+ * par défaut. L'AppImage n'installe aucune entrée : on en écrit une pour l'utilisateur.
+ */
+export async function setWhatsappLinkHandler(enabled: boolean, log: Logger): Promise<boolean> {
+  try {
+    return await applyWhatsappLinkHandler(enabled, log);
+  } catch (error) {
+    log.error("link-handler-failed", { enabled, error: String(error) });
+    return false;
+  }
+}
+
+async function applyWhatsappLinkHandler(enabled: boolean, log: Logger): Promise<boolean> {
+  if (!app.isPackaged || isFlatpak()) return true;
+  const dataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share");
+  const userEntry = path.join(dataHome, "applications", `${APP_ID}.desktop`);
+  if (process.env.APPIMAGE) {
+    if (enabled) {
+      fs.mkdirSync(path.dirname(userEntry), { recursive: true });
+      fs.writeFileSync(
+        userEntry,
+        [
+          "[Desktop Entry]",
+          "Type=Application",
+          `Name=${PRODUCT_NAME}`,
+          `Exec=${[...launchArgs(), "%U"].map((part) => (part === "%U" ? part : desktopExecArg(part))).join(" ")}`,
+          `Icon=${APP_ID}`,
+          "NoDisplay=true",
+          "MimeType=x-scheme-handler/whatsapp;",
+          ""
+        ].join("\n"),
+        { mode: 0o644 }
+      );
+    } else {
+      fs.rmSync(userEntry, { force: true });
+    }
+  }
+  if (enabled) {
+    const result = await run("xdg-mime", ["default", `${APP_ID}.desktop`, "x-scheme-handler/whatsapp"]);
+    log.info("link-handler", { enabled, ok: result.ok });
+    return result.ok;
+  }
+  log.info("link-handler", { enabled, note: "le bureau choisit de nouveau le gestionnaire" });
+  return true;
+}
+
+/** §24 : menu contextuel des vues WhatsApp (Electron n'en fournit aucun). */
+export function attachContextMenu(webContents: WebContents, options: { devTools: boolean; openLink(url: string): void }): void {
+  webContents.on("context-menu", (_event, params: ContextMenuParams) => {
+    const items: MenuItemConstructorOptions[] = [];
+
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+        items.push({ label: suggestion, click: () => webContents.replaceMisspelling(suggestion) });
+      }
+      items.push({
+        label: "Ajouter au dictionnaire",
+        click: () => webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
+      });
+      items.push({ type: "separator" });
+    }
+
+    if (params.isEditable) {
+      items.push(
+        { role: "undo", label: "Annuler", enabled: params.editFlags.canUndo },
+        { role: "redo", label: "Rétablir", enabled: params.editFlags.canRedo },
+        { type: "separator" },
+        { role: "cut", label: "Couper", enabled: params.editFlags.canCut },
+        { role: "copy", label: "Copier", enabled: params.editFlags.canCopy },
+        { role: "paste", label: "Coller", enabled: params.editFlags.canPaste },
+        { role: "selectAll", label: "Tout sélectionner" }
+      );
+    } else if (params.selectionText) {
+      items.push({ role: "copy", label: "Copier" });
+    }
+
+    if (params.mediaType === "image" && params.srcURL) {
+      if (items.length > 0) items.push({ type: "separator" });
+      items.push(
+        { label: "Copier l’image", click: () => webContents.copyImageAt(params.x, params.y) },
+        { label: "Enregistrer l’image…", click: () => webContents.downloadURL(params.srcURL) }
+      );
+    }
+
+    if (params.linkURL) {
+      if (items.length > 0) items.push({ type: "separator" });
+      items.push(
+        { label: "Copier le lien", click: () => clipboard.writeText(params.linkURL) },
+        { label: "Ouvrir le lien", click: () => options.openLink(params.linkURL) }
+      );
+    }
+
+    if (options.devTools) {
+      if (items.length > 0) items.push({ type: "separator" });
+      items.push({ label: "Inspecter l’élément", click: () => webContents.inspectElement(params.x, params.y) });
+    }
+
+    if (items.length > 0) Menu.buildFromTemplate(items).popup();
+  });
+}

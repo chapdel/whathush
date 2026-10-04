@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Typecheck, tests unitaires, e2e et natifs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # Ubuntu 24.04 restreint les user namespaces : le sandbox Chromium en a besoin (§41).
+      - name: Autoriser le sandbox Chromium
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright test
+      - run: node tests/native/run.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: captures
+          path: test-results/screens
+
+  lab:
+    name: Feasibility Lab (smoke test)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: lab/package-lock.json
+      - name: Autoriser le sandbox Chromium
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: npm ci
+        working-directory: lab
+      - run: npm run smoke
+        working-directory: lab
+
+  package:
+    name: Paquets Linux (AppImage, deb, rpm, tar.gz)
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y rpm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run build
+      - run: npx electron-builder --linux AppImage deb rpm tar.gz
+      # Le binaire empaqueté (fuses actives) doit afficher son interface : c'est ce
+      # contrôle qui manquait quand file:// ne pouvait plus lire app.asar.
+      - name: Auto-test du binaire empaqueté
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          WHATHUSH_USER_DATA="$(mktemp -d)" ./release/linux-unpacked/whathush --self-test --ozone-platform=headless
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paquets
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+            release/*.tar.gz

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Métadonnées AppStream (Flathub, logithèques). -->
+<component type="desktop-application">
+  <id>io.github.chapdel.mcdesk</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <!-- Licence à choisir avant publication (MIT, GPL-3.0-or-later…). -->
+  <project_license>LicenseRef-proprietary</project_license>
+  <name>WhatHush</name>
+  <summary>Plusieurs comptes WhatsApp Web, Snooze et Focus</summary>
+  <developer id="io.github.chapdel">
+    <name>chapdel</name>
+  </developer>
+  <description>
+    <p>
+      WhatHush affiche le WhatsApp Web officiel pour plusieurs comptes à la fois,
+      chacun isolé dans sa propre session, et vous aide à garder la main sur
+      votre attention.
+    </p>
+    <ul>
+      <li>Plusieurs comptes connectés en même temps, sans se déconnecter</li>
+      <li>Snooze par compte, horaires automatiques et profils Focus</li>
+      <li>Veille profonde pour libérer la mémoire d’un compte inutilisé</li>
+      <li>Notifications du bureau avec le nom du compte, badge de non-lus</li>
+      <li>Aucun serveur, aucune statistique, aucun suivi</li>
+    </ul>
+    <p>
+      Projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.chapdel.mcdesk.desktop</launchable>
+  <url type="homepage">https://github.com/chapdel/whathush</url>
+  <url type="bugtracker">https://github.com/chapdel/whathush/issues</url>
+  <categories>
+    <category>Network</category>
+    <category>InstantMessaging</category>
+    <category>Chat</category>
+  </categories>
+  <keywords>
+    <keyword>whatsapp</keyword>
+    <keyword>messagerie</keyword>
+    <keyword>multi-comptes</keyword>
+  </keywords>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">intense</content_attribute>
+    <content_attribute id="social-info">mild</content_attribute>
+  </content_rating>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <releases>
+    <release version="0.1.0" date="2026-10-04">
+      <description>
+        <p>Première version : comptes multiples, Snooze, Focus, horaires, veille profonde.</p>
+      </description>
+    </release>
+  </releases>
+</component>
