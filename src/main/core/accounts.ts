@@ -1,7 +1,7 @@
 // Opérations pures sur la liste des comptes (§6 à §8). Chaque fonction renvoie un
 // nouveau fichier ; l'écriture sur disque est l'affaire du Store.
 
-import { LABEL_MAX_LENGTH, MAX_ACCOUNTS, partitionFor } from "../../shared/constants";
+import { LABEL_MAX_LENGTH, leastUsedAccountColor, MAX_ACCOUNTS, partitionFor } from "../../shared/constants";
 import type { AccountConfig, AccountsFile, NotificationSettings } from "../../shared/schemas";
 
 export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
@@ -36,7 +36,7 @@ export function addAccount(
   const account: AccountConfig = {
     id,
     label,
-    ...(input.color ? { color: input.color } : {}),
+    color: input.color ?? leastUsedAccountColor(file.accounts.map((account) => account.color)),
     ...(input.icon ? { icon: input.icon } : {}),
     order: file.accounts.length,
     partition: partitionFor(id),

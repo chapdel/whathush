@@ -95,6 +95,9 @@ test("modale d'ajout : les vues WhatsApp sont masquées puis réaffichées (§29
     const shown = () => app.evaluate(() => (globalThis as any).__whathush.viewsManager().shown());
     expect(await shown()).toBe(id);
     await shell.getByRole("button", { name: "Ajouter un compte" }).first().click();
+    // §7 : les contraintes de liaison sont rappelées avant le scan.
+    await expect(shell.getByText("Laissez cochée l’option « rester connecté »", { exact: false })).toBeVisible();
+    await expect(shell.getByText("4 au maximum par numéro", { exact: false })).toBeVisible();
     await expect(shell.getByRole("dialog", { name: "Ajouter un compte" })).toBeVisible();
     await expect.poll(shown).toBeNull();
     await shell.getByPlaceholder("Personnel, Travail, Support…").fill("Support");

@@ -261,3 +261,39 @@ describe("correctifs de la seconde revue", () => {
     expect(snooze && snooze.kind === "submenu" ? labels(snooze.items).at(-1) : null).toBe("Jusqu’à une date…");
   });
 });
+
+describe("identité visuelle des comptes (§2.4)", () => {
+  const luminance = (hex: string) =>
+    [0, 2, 4]
+      .map((offset) => parseInt(hex.slice(1 + offset, 3 + offset), 16) / 255)
+      .map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index]!, 0);
+
+  it("chaque couleur de compte garde des initiales blanches lisibles (≥ 4,5:1)", async () => {
+    const { ACCOUNT_COLORS } = await import("../../src/shared/constants");
+    for (const { value, name } of ACCOUNT_COLORS) {
+      const ratio = (1 + 0.05) / (luminance(value) + 0.05);
+      expect(ratio, name).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("aucune couleur de la palette n'est le vert de WhatsApp (§38)", async () => {
+    const { ACCOUNT_COLORS, DEFAULT_ACCOUNT_COLOR } = await import("../../src/shared/constants");
+    const whatsappGreens = ["#25d366", "#128c7e", "#075e54", "#00a884"];
+    for (const { value } of ACCOUNT_COLORS) expect(whatsappGreens).not.toContain(value.toLowerCase());
+    expect(DEFAULT_ACCOUNT_COLOR).toBe("#5a5fc4");
+  });
+});
+
+describe("couleur des nouveaux comptes", () => {
+  it("prend la couleur la moins utilisée, y compris après une suppression", async () => {
+    const { ACCOUNT_COLORS, leastUsedAccountColor } = await import("../../src/shared/constants");
+    const palette = ACCOUNT_COLORS.map((color) => color.value);
+    expect(leastUsedAccountColor([])).toBe(palette[0]);
+    expect(leastUsedAccountColor([palette[0], palette[1]])).toBe(palette[2]);
+    // Le 2e compte a été supprimé : sa couleur redevient la première disponible.
+    expect(leastUsedAccountColor([palette[0], palette[2], palette[3]])).toBe(palette[1]);
+    // Une couleur hors palette (ancienne version) est ignorée.
+    expect(leastUsedAccountColor(["#123456"])).toBe(palette[0]);
+  });
+});

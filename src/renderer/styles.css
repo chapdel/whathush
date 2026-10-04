@@ -1,28 +1,28 @@
 /* Desktop tokens. WhatsApp remains a separate, unmodified native surface. */
 :root {
   color-scheme: light;
-  --bg: #f7f8f7;
+  --bg: #f7f7f9;
   --surface: #ffffff;
-  --surface-2: #f0f2f1;
-  --surface-3: #dce1de;
-  --sidebar: #eff2f0;
-  --sidebar-hover: #e4e9e6;
-  --sidebar-active: #e0e6e2;
-  --border: rgb(28 39 33 / 12%);
-  --border-strong: rgb(28 39 33 / 24%);
-  --text: #242b27;
-  --muted: #5b665e;
-  --accent: #356b5b;
-  --accent-strong: #285546;
-  --accent-soft: #e6efe9;
+  --surface-2: #f1f1f5;
+  --surface-3: #dfdfe8;
+  --sidebar: #f0f0f4;
+  --sidebar-hover: #e7e7ef;
+  --sidebar-active: #e2e2ec;
+  --border: rgb(30 30 50 / 12%);
+  --border-strong: rgb(30 30 50 / 24%);
+  --text: #24242c;
+  --muted: #5d5f6e;
+  --accent: #4f46c8;
+  --accent-strong: #3f37a8;
+  --accent-soft: #ecebfb;
   --on-accent: #ffffff;
   --danger: #ac343b;
   --danger-soft: #f8ecec;
   --warning: #875c22;
   --warning-soft: #f7f0e4;
-  --success: #356b5b;
-  --focus-ring: #397967;
-  --shadow: 0 8px 32px rgb(20 30 24 / 14%), 0 0 0 1px rgb(20 30 24 / 6%);
+  --success: #2f7d55;
+  --focus-ring: #5b52d6;
+  --shadow: 0 8px 32px rgb(24 24 40 / 14%), 0 0 0 1px rgb(24 24 40 / 6%);
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius: 10px;
@@ -52,28 +52,28 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #191e1b;
-    --surface: #202623;
-    --surface-2: #282f2b;
-    --surface-3: #3e4842;
-    --sidebar: #1d2320;
-    --sidebar-hover: #2a332d;
-    --sidebar-active: #323c35;
-    --border: rgb(227 237 230 / 10%);
-    --border-strong: rgb(227 237 230 / 24%);
-    --text: #e3e9e5;
-    --muted: #acb7af;
-    --accent: #93c4ae;
-    --accent-strong: #abd5c1;
-    --accent-soft: #2c3d33;
-    --on-accent: #18281f;
+    --bg: #18181d;
+    --surface: #1f1f26;
+    --surface-2: #27272f;
+    --surface-3: #3b3b47;
+    --sidebar: #1c1c22;
+    --sidebar-hover: #282830;
+    --sidebar-active: #30303a;
+    --border: rgb(230 230 245 / 10%);
+    --border-strong: rgb(230 230 245 / 24%);
+    --text: #e6e6ee;
+    --muted: #a9abbb;
+    --accent: #a5a1f5;
+    --accent-strong: #bcb9f8;
+    --accent-soft: #2e2c4a;
+    --on-accent: #17162b;
     --danger: #f09599;
     --danger-soft: #3b292b;
     --warning: #d9b87f;
     --warning-soft: #353026;
-    --success: #93c4ae;
-    --focus-ring: #93c4ae;
-    --shadow: 0 0 0 1px rgb(227 237 230 / 14%);
+    --success: #8fcfaa;
+    --focus-ring: #a5a1f5;
+    --shadow: 0 0 0 1px rgb(230 230 245 / 14%);
   }
 }
 * { box-sizing: border-box; }
@@ -150,9 +150,9 @@ h1, h2, h3, strong { font-weight: 600; }
 .account.dragging { opacity: .45; }
 .account.drop-target { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .account[draggable="true"] { -webkit-user-drag: element; }
-.avatar { position: relative; width: 32px; height: 32px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--account-color) 18%, var(--surface)); color: var(--text); font-weight: 500; font-size: var(--font-control); }
+.avatar { position: relative; width: 32px; height: 32px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--account-color); color: #fff; font-weight: 600; font-size: var(--font-control); }
 .avatar .emoji { font-size: 16px; line-height: 1; }
-.avatar.dim { background: var(--surface-2); color: var(--muted); }
+.avatar.dim { background: var(--surface-2); color: var(--muted); box-shadow: inset 0 0 0 1px var(--border-strong); }
 .avatar .state { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--sidebar); background: var(--surface-3); color: var(--text); display: inline-flex; align-items: center; justify-content: center; }
 .avatar .state svg { width: 12px; height: 12px; }
 .avatar .state.call { background: var(--accent); color: var(--on-accent); }
@@ -197,7 +197,7 @@ kbd { font: inherit; font-size: var(--font-meta); color: var(--muted); margin-le
 /* Native HTML dialog: top layer, inert background, contained keyboard focus. */
 .modal { width: min(440px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto; border: 0; background: var(--surface); color: var(--text); border-radius: var(--radius); box-shadow: var(--shadow); padding: var(--space-7); }
 .modal[open] { display: flex; flex-direction: column; gap: var(--space-5); }
-.modal::backdrop { background: rgb(17 24 20 / 38%); }
+.modal::backdrop { background: rgb(18 18 30 / 38%); }
 .modal-heading { display: flex; align-items: center; gap: var(--space-4); }
 .modal h2 { margin: 0; font-size: var(--font-section); flex: 1; min-width: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); padding-top: var(--space-3); }
@@ -309,3 +309,5 @@ kbd { font: inherit; font-size: var(--font-meta); color: var(--muted); margin-le
 .rotate-up, .rotate-down { display: inline-flex; transform: rotate(90deg); }
 .icon-btn:disabled { pointer-events: auto; }
 .settings-notices { position: sticky; top: 0; display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: var(--space-5); background: var(--surface); z-index: 1; }
+
+.hint-list { margin: 0; padding-left: 18px; display: grid; gap: var(--space-1); }

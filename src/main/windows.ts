@@ -14,7 +14,7 @@ export interface WindowPaths {
 
 /** Couleur avant peinture / reprise du renderer ; mêmes surfaces que les tokens CSS. */
 export function windowBackground(settings = false): string {
-  return nativeTheme.shouldUseDarkColors ? (settings ? "#202623" : "#191e1b") : (settings ? "#ffffff" : "#f7f8f7");
+  return nativeTheme.shouldUseDarkColors ? (settings ? "#1f1f26" : "#18181d") : (settings ? "#ffffff" : "#f7f7f9");
 }
 
 function harden(contents: WebContents, rendererUrl: string): void {

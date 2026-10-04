@@ -101,6 +101,12 @@ async function selfTest(application: Application, store: AppStore): Promise<void
     ui = { error: String(error) };
   }
   const ok = "sidebar" in ui && ui.sidebar;
+  let build: unknown = null;
+  try {
+    build = JSON.parse(fs.readFileSync(path.join(distDir, "build-info.json"), "utf8"));
+  } catch {
+    build = null;
+  }
   console.log(
     JSON.stringify({
       product: PRODUCT_NAME,
@@ -111,6 +117,7 @@ async function selfTest(application: Application, store: AppStore): Promise<void
       packaged: app.isPackaged,
       userData,
       accounts: store.get("accounts").accounts.length,
+      build,
       ui,
       ok
     })

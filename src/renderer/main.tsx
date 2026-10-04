@@ -5,11 +5,11 @@
 
 import { StrictMode, useCallback, useEffect, useState, useRef, type MouseEvent } from "react";
 import { createRoot } from "react-dom/client";
-import { compactSidebar, CONNECTION_BAR_HEIGHT, SIDEBAR_WIDTH } from "../shared/constants";
+import { compactSidebar, CONNECTION_BAR_HEIGHT, leastUsedAccountColor, SIDEBAR_WIDTH } from "../shared/constants";
 import { formatRemaining, lifecycleLabel } from "../shared/format";
 import type { AccountItem, ShellState } from "../shared/ipc";
 import { api, useNow, useShellState, useWindowWidth } from "./api";
-import { Avatar, COLORS, AccountIconPicker, Icon, Modal, Swatches } from "./components/ui";
+import { Avatar, AccountIconPicker, Icon, Modal, Swatches } from "./components/ui";
 import logo from "./logo.svg";
 import "./styles.css";
 
@@ -227,9 +227,9 @@ function Stage({ state, onAdd }: { state: ShellState; onAdd(): void }) {
   return null;
 }
 
-function AddAccountModal({ existing, onClose }: { existing: number; onClose(): void }) {
-  const [label, setLabel] = useState(existing === 0 ? "Personnel" : "");
-  const [color, setColor] = useState(COLORS[existing % COLORS.length] ?? COLORS[0]!);
+function AddAccountModal({ usedColors, onClose }: { usedColors: string[]; onClose(): void }) {
+  const [label, setLabel] = useState(usedColors.length === 0 ? "Personnel" : "");
+  const [color, setColor] = useState(() => leastUsedAccountColor(usedColors));
   const [icon, setIcon] = useState<string | null>(null);
   const submit = () => {
     if (!label.trim()) return;
@@ -253,7 +253,14 @@ function AddAccountModal({ existing, onClose }: { existing: number; onClose(): v
           <div className="field"><span>Icône</span><AccountIconPicker value={icon} onChange={setIcon} /></div>
           <div className="field"><span>Couleur</span><Swatches value={color} onChange={setColor} /></div>
         </div></details>
-        <p className="hint">Sur votre téléphone : <strong>Appareils connectés → Connecter un appareil</strong>, puis scannez le QR code.</p>
+        {/* §7 : contraintes WhatsApp à connaître avant de scanner. */}
+        <ul className="hint hint-list">
+          <li>
+            Sur votre téléphone : <strong>Appareils connectés → Connecter un appareil</strong>, puis scannez le QR code.
+          </li>
+          <li>Laissez cochée l’option « rester connecté » de WhatsApp, sinon il faudra rescanner à chaque démarrage.</li>
+          <li>Chaque compte occupe un appareil lié : 4 au maximum par numéro.</li>
+        </ul>
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>
             Annuler
@@ -383,7 +390,7 @@ function App() {
         <Stage state={state} onAdd={openAdd} />
       </main>
       {modal?.kind === "notices" && <Modal title="Informations" onClose={close}><div className="notices">{state.notices.map((notice) => <NoticeItem key={notice.id} notice={notice} />)}</div></Modal>}
-      {modal?.kind === "add" && <AddAccountModal existing={state.accounts.length} onClose={close} />}
+      {modal?.kind === "add" && <AddAccountModal usedColors={state.accounts.map((account) => account.color)} onClose={close} />}
       {modal?.kind === "choose-link" && <ChooseAccountModal state={state} onClose={closeLink} />}
       {modal?.kind === "snooze-date" && <SnoozeDateModal account={state.accounts.find((account) => account.id === modal.accountId)} onClose={close} />}
     </div>

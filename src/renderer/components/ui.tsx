@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode, type CSSProperties } from "react";
 import { initials } from "../../shared/format";
 import type { AccountItem } from "../../shared/ipc";
-import { DEFAULT_ACCOUNT_COLOR } from "../../shared/constants";
+import { ACCOUNT_COLORS } from "../../shared/constants";
 
-export const COLORS = [DEFAULT_ACCOUNT_COLOR, "#577d9b", "#8a719b", "#a17d55", "#9b6972", "#6d7c64"];
-const COLOR_NAMES = ["Sauge", "Bleu", "Prune", "Sable", "Rose", "Olive"];
+export const COLORS: string[] = ACCOUNT_COLORS.map((color) => color.value);
+const COLOR_NAMES: string[] = ACCOUNT_COLORS.map((color) => color.name);
 
 // --- Icônes (traits simples, couleur héritée) ---------------------------------------
 

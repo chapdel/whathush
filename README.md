@@ -76,11 +76,13 @@ podman run --rm --security-opt label=disable -v "$PWD":/work -w /work \
   registry.fedoraproject.org/fedora:44 bash -c \
   "dnf install -y nodejs rpm-build libxcrypt-compat && npx electron-builder --linux rpm deb --prepackaged release/linux-unpacked"
 # Flatpak
-flatpak run org.flatpak.Builder --user --force-clean --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.mcdesk.yml
+# --disable-cache : sans lui, flatpak-builder peut réutiliser un ancien build en cache
+flatpak run org.flatpak.Builder --user --force-clean --disable-cache --state-dir=release/.flatpak-builder \
+  --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.mcdesk.yml
 flatpak build-bundle release/flatpak-repo release/WhatHush-0.1.0.flatpak io.github.chapdel.mcdesk
 ```
 
-`whathush --self-test` démarre réellement l’application empaquetée (fuses actives), vérifie que l’interface s’affiche et imprime un bilan JSON.
+`whathush --self-test` démarre réellement l’application empaquetée (fuses actives), vérifie que l’interface s’affiche et imprime un bilan JSON, dont l’empreinte du build (`build` : commit, date). Comparer cette empreinte à `dist/build-info.json` garantit que le paquet contient le build attendu, et pas une version restée en cache.
 
 | Format | Vérification faite |
 |---|---|
@@ -114,6 +116,10 @@ tests/                 unitaires, e2e (fausse page WhatsApp), natifs
 packaging/             entrée de bureau, AppStream, PKGBUILD, manifeste Flatpak
 lab/                   Feasibility Lab (phase 0), projet séparé
 ```
+
+## Suite prévue
+
+[`docs/plan-fonctionnalites-complementaires.md`](docs/plan-fonctionnalites-complementaires.md) : interface multilingue, presse-papiers testé, indicateur « En cours de lecture », zoom et raccourcis, historique des téléchargements, rapport de diagnostic, verrouillage par code, voile de confidentialité, permissions par compte, proxy, avatars et thème synchronisé.
 
 ## Ce qui reste de votre côté
 
