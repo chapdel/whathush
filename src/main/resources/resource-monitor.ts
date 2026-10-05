@@ -1,4 +1,4 @@
-// ResourceMonitor (§17) : RAM et CPU par compte, veille automatique.
+// ResourceMonitor : RAM et CPU par compte, veille automatique.
 
 import { app } from "electron";
 import { EventEmitter } from "node:events";

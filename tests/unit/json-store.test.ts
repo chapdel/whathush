@@ -94,7 +94,7 @@ describe("migrations", () => {
   });
 });
 
-// Fichiers v1 réels, tels qu'écrits par la version 0.1.0 (plan complémentaire, §2.1).
+// Fichiers v1 réels, tels qu'écrits par la version 0.1.0.
 describe("migration v1 → v2 des fichiers de l'application", () => {
   const V1_ACCOUNTS = {
     schemaVersion: 1,

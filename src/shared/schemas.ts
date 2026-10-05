@@ -1,4 +1,4 @@
-// Schémas des fichiers de configuration (§6) et types qui en dérivent.
+// Schémas des fichiers de configuration et types qui en dérivent.
 // Toute donnée lue sur disque ou reçue par IPC passe par ces schémas.
 
 import { z } from "zod";
@@ -10,7 +10,7 @@ export type Mode = z.infer<typeof ModeSchema>;
 const IsoDateTime = z.iso.datetime({ offset: true });
 const Clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "heure attendue au format HH:MM");
 
-// --- Horaires (§15) ---------------------------------------------------------
+// --- Horaires ---------------------------------------------------------------
 
 export const ScheduleRuleSchema = z.strictObject({
   /** Jours ISO de début de la plage : 1 = lundi … 7 = dimanche. */
@@ -38,7 +38,7 @@ export const SchedulesFileSchema = z.strictObject({
 });
 export type SchedulesFile = z.infer<typeof SchedulesFileSchema>;
 
-// --- Focus (§14) --------------------------------------------------------------
+// --- Focus --------------------------------------------------------------------
 
 export const FocusProfileSchema = z.strictObject({
   id: z.uuid(),
@@ -62,7 +62,7 @@ export const FocusFileSchema = z.strictObject({
 });
 export type FocusFile = z.infer<typeof FocusFileSchema>;
 
-// --- Comptes (§6) ---------------------------------------------------------------
+// --- Comptes --------------------------------------------------------------------
 
 export const NotificationSettingsSchema = z.strictObject({
   enabled: z.boolean(),
@@ -81,7 +81,7 @@ export const ManualOverrideSchema = z.strictObject({
 });
 export type ManualOverride = z.infer<typeof ManualOverrideSchema>;
 
-// --- Permissions par compte (F8) ----------------------------------------------------
+// --- Permissions par compte ---------------------------------------------------------
 
 export const PermissionChoiceSchema = z.enum(["allow", "ask", "deny"]);
 export type PermissionChoice = z.infer<typeof PermissionChoiceSchema>;
@@ -90,12 +90,12 @@ export const AccountPermissionsSchema = z.strictObject({
   microphone: PermissionChoiceSchema,
   camera: PermissionChoiceSchema,
   location: PermissionChoiceSchema,
-  /** Le choix de l'écran est toujours demandé (portail ou dialogue, §20) : pas de « allow ». */
+  /** Le choix de l'écran est toujours demandé (portail ou dialogue) : pas de « allow ». */
   screenShare: z.enum(["ask", "deny"])
 });
 export type AccountPermissions = z.infer<typeof AccountPermissionsSchema>;
 
-// --- Proxy (F9) : jamais de secret ici, les identifiants vont dans security.json ---------
+// --- Proxy : jamais de secret ici, les identifiants vont dans security.json --------------
 
 /** Nom d'hôte, IPv4 ou IPv6 entre crochets ; rien qui puisse casser une règle de proxy. */
 const ProxyHost = z
@@ -126,7 +126,7 @@ export type GlobalProxy = z.infer<typeof GlobalProxySchema>;
 export const AccountProxyModeSchema = z.enum(["inherit", "none", "manual"]);
 export type AccountProxyMode = z.infer<typeof AccountProxyModeSchema>;
 
-/** Zoom par compte (F1), en pourcentage, par paliers de 10. */
+/** Zoom par compte, en pourcentage, par paliers de 10. */
 export const ZoomPercentSchema = z.int().min(50).max(200).refine((value) => value % 10 === 0, "palier de 10 %");
 
 export const AccountConfigSchema = z
@@ -144,7 +144,7 @@ export const AccountConfigSchema = z
     manualOverride: ManualOverrideSchema.optional(),
     scheduleId: z.uuid().optional(),
     autoSleepAfterMinutes: z.int().min(1).max(7 * 24 * 60).optional(),
-    /** Seule intention de cycle de vie persistée (§2.1). */
+    /** Seule intention de cycle de vie persistée. */
     sleeping: z.boolean(),
     createdAt: IsoDateTime,
     lastOpenedAt: IsoDateTime,
@@ -152,7 +152,7 @@ export const AccountConfigSchema = z
     permissions: AccountPermissionsSchema,
     proxyMode: AccountProxyModeSchema,
     proxy: ProxyServerSchema.nullable(),
-    /** F11 : l'aide « thème de WhatsApp » a été montrée pour ce compte. */
+    /** L'aide « thème de WhatsApp » a été montrée pour ce compte. */
     themeHintShown: z.boolean()
   })
   .refine((account) => account.partition === partitionFor(account.id), {
@@ -166,7 +166,7 @@ export const AccountsFileSchema = z
   .strictObject({
     schemaVersion: z.literal(2),
     accounts: z.array(AccountConfigSchema).max(MAX_ACCOUNTS),
-    /** Partitions à supprimer au prochain démarrage (§8). */
+    /** Partitions à supprimer au prochain démarrage. */
     pendingPartitionDeletion: z.array(z.uuid())
   })
   .refine((file) => new Set(file.accounts.map((account) => account.id)).size === file.accounts.length, {
@@ -175,16 +175,16 @@ export const AccountsFileSchema = z
   });
 export type AccountsFile = z.infer<typeof AccountsFileSchema>;
 
-// --- Préférences globales (§31) -----------------------------------------------
+// --- Préférences globales -----------------------------------------------------
 
 export const ThemeSchema = z.enum(["system", "light", "dark"]);
 export const LanguagePreferenceSchema = z.enum(["system", "fr", "en"]);
 export type LanguagePreference = z.infer<typeof LanguagePreferenceSchema>;
-/** F5 : « off » par défaut, les dictionnaires venant des serveurs de Google (§24). */
+/** « off » par défaut, les dictionnaires venant des serveurs de Google. */
 export const SpellcheckModeSchema = z.enum(["off", "system", "custom"]);
 export const TrayCountStyleSchema = z.enum(["number", "dot", "none"]);
 export type TrayCountStyle = z.infer<typeof TrayCountStyleSchema>;
-/** F1 : échelle de la coque et des paramètres, en pourcentage. */
+/** Échelle de la coque et des paramètres, en pourcentage. */
 export const InterfaceScaleSchema = z.int().min(90).max(150).refine((value) => value % 10 === 0, "palier de 10 %");
 
 export const PrivacyVeilSchema = z.strictObject({
@@ -192,7 +192,7 @@ export const PrivacyVeilSchema = z.strictObject({
   onBlur: z.boolean(),
   /** F7a : voiler les vues pendant un partage d'écran. */
   onScreenShare: z.boolean(),
-  /** F7b, expérimental (niveau 3) : flou message par message. */
+  /** Expérimental (niveau 3) : flou message par message. */
   blurMessages: z.boolean()
 });
 export type PrivacyVeil = z.infer<typeof PrivacyVeilSchema>;
@@ -217,12 +217,12 @@ export const PreferencesSchema = z.strictObject({
   privacyVeil: PrivacyVeilSchema,
   proxy: GlobalProxySchema,
   trayCountStyle: TrayCountStyleSchema,
-  /** F14 : démarrer un média met en pause ceux des autres comptes. */
+  /** Démarrer un média met en pause ceux des autres comptes. */
   exclusivePlayback: z.boolean()
 });
 export type Preferences = z.infer<typeof PreferencesSchema>;
 
-// --- Sécurité (F6, F9) : security.json, 0600 ------------------------------------------
+// --- Sécurité : security.json, 0600 ---------------------------------------------------
 
 const Base64 = z.string().max(4096).regex(/^[A-Za-z0-9+/]*={0,2}$/);
 
@@ -253,7 +253,7 @@ export const SecurityFileSchema = z.strictObject({
 });
 export type SecurityFile = z.infer<typeof SecurityFileSchema>;
 
-// --- Historique des téléchargements (F2) : downloads.json, 0600 --------------------------
+// --- Historique des téléchargements : downloads.json, 0600 -------------------------------
 
 export const DownloadStateSchema = z.enum(["progressing", "completed", "cancelled", "interrupted"]);
 export type DownloadState = z.infer<typeof DownloadStateSchema>;

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { addAccountViaUi, command, inView, launch, link, probe, screenshot, state, waitForAccount } from "./harness";
 
-test("liens : navigateur système, schémas bloqués, choix du compte pour wa.me (§23)", async () => {
+test("liens : navigateur système, schémas bloqués, choix du compte pour wa.me", async () => {
   const harness = await launch();
   const { app, shell } = harness;
   try {
@@ -85,7 +85,7 @@ test("liens : navigateur système, schémas bloqués, choix du compte pour wa.me
   }
 });
 
-test("téléchargements : dossier dédié, jamais d'écrasement (§22)", async () => {
+test("téléchargements : dossier dédié, jamais d'écrasement", async () => {
   const harness = await launch();
   const { app } = harness;
   try {
@@ -114,7 +114,7 @@ test("téléchargements : dossier dédié, jamais d'écrasement (§22)", async (
   }
 });
 
-test("persistance : redémarrage sans QR, compte actif restauré, suppression purgée (§7, §8, §33)", async () => {
+test("persistance : redémarrage sans QR, compte actif restauré, suppression purgée", async () => {
   let harness = await launch();
   const userData = harness.userData;
   const fakeUrl = harness.fakeUrl;

@@ -1,4 +1,4 @@
-// Correcteur orthographique (F5, §24). Sous Linux, Electron télécharge les
+// Correcteur orthographique. Sous Linux, Electron télécharge les
 // dictionnaires depuis les serveurs de Google. Exploration du 2026-10-05 : un fichier
 // .bdic déposé dans <userData>/Dictionaries est chargé sans aucun téléchargement
 // (les adresses file://, app:// et http://127.0.0.1 sont refusées par Chromium).

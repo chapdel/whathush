@@ -44,7 +44,7 @@ describe("addAccount", () => {
   });
 });
 
-describe("removeAccount (§8)", () => {
+describe("removeAccount", () => {
   it("retire le compte, renumérote et programme la purge de la partition", () => {
     const file = removeAccount(threeAccounts(), IDS[0]);
     expect(file.accounts.map((account) => [account.label, account.order])).toEqual([

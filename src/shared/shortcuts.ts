@@ -1,4 +1,4 @@
-// Raccourcis clavier (§9, F1) : une seule table, lue par le gestionnaire de touches
+// Raccourcis clavier : une seule table, lue par le gestionnaire de touches
 // du processus principal et par la feuille des raccourcis. Impossible qu'ils divergent.
 
 import type { MessageKey } from "./i18n";
@@ -79,7 +79,7 @@ export function matchShortcut(input: KeyInput): ShortcutDefinition | undefined {
   return SHORTCUTS.find((shortcut) => shortcut.match(input));
 }
 
-/** F1 : zoom par compte, de 50 à 200 % par paliers de 10 %. */
+/** Zoom par compte, de 50 à 200 % par paliers de 10 %. */
 export const ZOOM = { min: 50, max: 200, step: 10, default: 100 } as const;
 
 export function nextZoom(current: number, action: "in" | "out" | "reset"): number {

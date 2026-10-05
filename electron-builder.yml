@@ -1,4 +1,4 @@
-# Packaging Linux (§41) : AppImage, .deb, .rpm, archive tar.gz (base du paquet AUR
+# Packaging Linux : AppImage, .deb, .rpm, archive tar.gz (base du paquet AUR
 # et du manifeste Flatpak). Rien n'est publié : `publish: null`.
 
 appId: io.github.chapdel.mcdesk
@@ -15,7 +15,7 @@ files:
   - "!dist/**/*.map"
   - package.json
 
-# §26 : fuses Electron, appliquées au binaire empaqueté.
+# Fuses Electron, appliquées au binaire empaqueté.
 electronFuses:
   runAsNode: false
   enableCookieEncryption: true
@@ -35,14 +35,14 @@ linux:
   category: Network;InstantMessaging;Chat
   icon: build/icons
   syncDesktopName: true
-  # §23 : déclaré ; l'option « liens whatsapp:// » des paramètres en fait le choix par défaut.
+  # Déclaré ; l'option « liens whatsapp:// » des paramètres en fait le choix par défaut.
   mimeTypes:
     - x-scheme-handler/whatsapp
   maintainer: chapdel <iamchapdel@gmail.com>
   vendor: chapdel
   synopsis: Multi-account client for WhatsApp Web
   # Sert aussi de Comment dans l'entrée de bureau : rester court. Anglais par défaut,
-  # français par les clés [fr] (F12), comme packaging/linux/*.desktop.
+  # français par les clés [fr], comme packaging/linux/*.desktop.
   description: Several WhatsApp Web accounts side by side, with Snooze, Focus and deep sleep. Independent project, not affiliated with WhatsApp or Meta.
   desktop:
     entry:

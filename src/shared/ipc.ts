@@ -1,4 +1,4 @@
-// Contrat IPC (§26) : canaux, état poussé vers l'UI, commandes reçues de l'UI.
+// Contrat IPC : canaux, état poussé vers l'UI, commandes reçues de l'UI.
 // Toute commande est validée par zod dans le processus principal.
 
 import { z } from "zod";
@@ -47,9 +47,9 @@ export interface AccountItem {
   inCall: boolean;
   audible: boolean;
   memoryMB: number | null;
-  /** F1 : zoom de la vue WhatsApp, en pourcentage. */
+  /** Zoom de la vue WhatsApp, en pourcentage. */
   zoomPercent: number;
-  /** F14 : média en cours (ou en pause récente) dans ce compte. */
+  /** Média en cours (ou en pause récente) dans ce compte. */
   playback: { playing: boolean; kind: "audio" | "video"; title: string | null } | null;
 }
 
@@ -73,7 +73,7 @@ export interface Notice {
 
 export interface ShellState {
   productName: string;
-  /** Langue de l'interface (F12) et étiquette BCP 47 pour les dates et nombres. */
+  /** Langue de l'interface et étiquette BCP 47 pour les dates et nombres. */
   language: Locale;
   localeTag: string;
   accounts: AccountItem[];
@@ -82,19 +82,19 @@ export interface ShellState {
   focus: { profiles: Array<{ id: string; name: string }>; activeProfileId: string | null; until: string | null };
   sidebarCollapsed: boolean;
   onboardingDone: boolean;
-  /** Lien de conversation en attente du choix d'un compte (§23). id : une demande = un id. */
+  /** Lien de conversation en attente du choix d'un compte. id : une demande = un id. */
   pendingLink: { id: number; phone: string | null } | null;
   notices: Notice[];
   trayAvailable: boolean;
-  /** F6 */
+  /** Verrouillage par code. */
   lock: LockView;
-  /** F7 */
+  /** Voile de confidentialité. */
   veiled: boolean;
-  /** F14 : lecture affichée en pied de barre latérale. */
+  /** Lecture affichée en pied de barre latérale. */
   nowPlaying: { accountId: string; label: string; playing: boolean; kind: "audio" | "video"; title: string | null } | null;
-  /** F2 */
+  /** Téléchargements en cours. */
   downloads: { active: number; progress: number | null };
-  /** F1 : zoom qui vient de changer, affiché brièvement. */
+  /** Zoom qui vient de changer, affiché brièvement. */
   zoomToast: { accountId: string; percent: number; sequence: number } | null;
 }
 
@@ -127,7 +127,7 @@ export interface SettingsState {
   schedules: Schedule[];
   focus: FocusFile;
   trayAvailable: boolean;
-  /** F5 : langues connues de Chromium, embarquées, et dictionnaire du système. */
+  /** Langues connues de Chromium, embarquées, et dictionnaire du système. */
   spellcheck: { available: string[]; bundled: string[]; systemDictionary: string | null; active: string[] };
   versions: { app: string; electron: string; chromium: string; node: string };
   paths: { userData: string; logs: string };
@@ -135,9 +135,9 @@ export interface SettingsState {
   /** Navigation contextuelle ; le numéro change seulement sur demande explicite. */
   navigationRequest?: { section: SettingsSection; accountId?: string; sequence: number } | null;
   notices?: Notice[];
-  /** F2 */
+  /** Historique des téléchargements. */
   downloads: DownloadEntry[];
-  /** F6, F9 : jamais de code ni d'identifiant, seulement leur présence. */
+  /** Jamais de code ni d'identifiant, seulement leur présence. */
   security: {
     lock: { enabled: boolean; onStart: boolean; onHide: boolean; idleMinutes: number; onScreenLock: boolean };
     secureStorage: boolean;
@@ -145,7 +145,7 @@ export interface SettingsState {
     /** Résultat du dernier changement ou de la dernière désactivation du code (formulaire). */
     lastCodeResult: { sequence: number; result: "ok" | "invalid" | "wrong-current" } | null;
   };
-  /** F9 : dernier test de connexion, par portée (« global » ou compte). */
+  /** Dernier test de connexion, par portée (« global » ou compte). */
   proxyTests: Record<string, { ok: boolean; route: string; error?: string; running?: boolean }>;
 }
 
@@ -240,19 +240,19 @@ export const CommandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("request-delete-focus-profile"), id: Id }),
   z.strictObject({ type: z.literal("activate-focus"), profileId: Id.nullable(), minutes: z.int().min(1).max(7 * 24 * 60).nullable() }),
   z.strictObject({ type: z.literal("open-logs") }),
-  // F1
+  // Zoom
   z.strictObject({ type: z.literal("zoom"), id: Id.optional(), action: z.enum(["in", "out", "reset"]) }),
-  // F14
+  // Lecture des médias
   z.strictObject({ type: z.literal("media-control"), id: Id, action: z.enum(["pause", "play"]) }),
-  // F2
+  // Téléchargements
   z.strictObject({ type: z.literal("download-open"), id: Id }),
   z.strictObject({ type: z.literal("download-show"), id: Id }),
   z.strictObject({ type: z.literal("download-remove"), id: Id }),
   z.strictObject({ type: z.literal("downloads-clear") }),
-  // F3
+  // Rapport de diagnostic
   z.strictObject({ type: z.literal("create-diagnostic-report") }),
   z.strictObject({ type: z.literal("report-problem") }),
-  // F6
+  // Verrouillage
   z.strictObject({ type: z.literal("lock-now") }),
   z.strictObject({ type: z.literal("unlock"), code: LockCode }),
   z.strictObject({ type: z.literal("forgot-lock-code") }),
@@ -262,9 +262,9 @@ export const CommandSchema = z.discriminatedUnion("type", [
     type: z.literal("set-lock-options"),
     options: z.strictObject({ onStart: z.boolean(), onHide: z.boolean(), idleMinutes: z.int().min(0).max(24 * 60), onScreenLock: z.boolean() }).partial()
   }),
-  // F7
+  // Voile
   z.strictObject({ type: z.literal("toggle-veil") }),
-  // F9
+  // Proxy
   z.strictObject({ type: z.literal("set-proxy-credentials"), scope: ProxyScopeSchema, username: z.string().max(255), password: z.string().max(255) }),
   z.strictObject({ type: z.literal("clear-proxy-credentials"), scope: ProxyScopeSchema }),
   z.strictObject({ type: z.literal("test-proxy"), scope: ProxyScopeSchema })
@@ -285,7 +285,7 @@ export const NotifyPayloadSchema = z.strictObject({
     .max(350_000)
     .regex(/^data:image\/(png|jpeg|webp|gif);base64,/)
     .nullable(),
-  /** F10 : photo servie par un autre domaine, téléchargée par le processus principal. */
+  /** Photo servie par un autre domaine, téléchargée par le processus principal. */
   iconUrl: z.string().max(2048).regex(/^https?:\/\//).nullable()
 });
 export type NotifyPayload = z.infer<typeof NotifyPayloadSchema>;
@@ -297,7 +297,7 @@ export const MediaPayloadSchema = z.strictObject({
 });
 export type MediaPayload = z.infer<typeof MediaPayloadSchema>;
 
-/** Signaux de l'adaptateur WhatsApp (§35, niveau 3, lecture seule). */
+/** Signaux de l'adaptateur WhatsApp (niveau 3, lecture seule). */
 export const LinkStatePayloadSchema = z.strictObject({
   /** Écran de liaison (QR ou code) affiché. */
   linking: z.boolean(),
@@ -313,7 +313,7 @@ export const EnvPayloadSchema = z.strictObject({
 });
 export type EnvPayload = z.infer<typeof EnvPayloadSchema>;
 
-/** F14 : lecture observée par le preload (API standard des médias, niveau 1). */
+/** Lecture observée par le preload (API standard des médias, niveau 1). */
 export const PlaybackPayloadSchema = z.strictObject({
   state: z.enum(["playing", "paused", "ended"]),
   kind: z.enum(["audio", "video"]),

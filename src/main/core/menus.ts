@@ -1,4 +1,4 @@
-// Modèles des menus natifs (§21, §29) : tray, menu d'un compte, menu Focus.
+// Modèles des menus natifs : tray, menu d'un compte, menu Focus.
 // Fonctions pures (de l'état et de la langue courante) ; le TrayManager les
 // convertit en Menu Electron.
 
@@ -110,7 +110,7 @@ export function focusMenu(state: Pick<ShellState, "focus">): MenuItemModel[] {
 }
 
 export function trayMenu(state: ShellState, now: Date): MenuItemModel[] {
-  // F6 : verrouillé, le menu ne montre ni les comptes ni leur état.
+  // Verrouillé, le menu ne montre ni les comptes ni leur état.
   if (state.lock.locked) {
     return [
       { kind: "label", label: state.productName },
@@ -120,7 +120,7 @@ export function trayMenu(state: ShellState, now: Date): MenuItemModel[] {
     ];
   }
   const items: MenuItemModel[] = [{ kind: "label", label: state.productName }, SEPARATOR];
-  // F14 : lecture en cours, avec Pause / Reprendre.
+  // Lecture en cours, avec Pause / Reprendre.
   const playing = state.nowPlaying;
   if (playing) {
     const title = playing.title ?? (playing.kind === "video" ? t("media.video") : t("media.voiceMessage"));

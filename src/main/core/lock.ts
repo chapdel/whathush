@@ -1,6 +1,6 @@
-// Verrouillage par code (F6) : décisions pures. Le hachage (scrypt) et l'écoute du
+// Verrouillage par code : décisions pures. Le hachage (scrypt) et l'écoute du
 // verrouillage de session vivent dans security/lock-service.ts.
-// Ce verrou protège la lecture à l'écran ; il ne chiffre pas les sessions (§27).
+// Ce verrou protège la lecture à l'écran ; il ne chiffre pas les sessions.
 
 import type { LockSettings } from "../../shared/schemas";
 

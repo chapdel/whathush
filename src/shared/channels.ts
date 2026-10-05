@@ -18,12 +18,12 @@ export const CHANNELS = {
   waEnv: "wa:env",
   waSwNotification: "wa:sw-notification",
   waVisibility: "wa:visibility",
-  /** F14 : lecture d'un média (page → principal) et commande Pause/Reprendre (principal → page). */
+  /** Lecture d'un média (page → principal) et commande Pause/Reprendre (principal → page). */
   waMediaPlayback: "wa:media-playback",
   waMediaControl: "wa:media-control",
-  /** F14 : textes pour les métadonnées de lecture (« Message vocal »). */
+  /** Textes pour les métadonnées de lecture (« Message vocal »). */
   waLabels: "wa:labels",
-  /** F7 : état du voile (principal → page), survol ou clic (page → principal), auto-test F7b. */
+  /** État du voile (principal → page), survol ou clic (page → principal), auto-test du flou des messages. */
   waVeil: "wa:veil",
   waVeilReveal: "wa:veil-reveal",
   waAdapterCheck: "wa:adapter-check"

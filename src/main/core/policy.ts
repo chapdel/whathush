@@ -1,4 +1,4 @@
-// PolicyEngine (§12 à §15) : politique de notification effective d'un compte.
+// PolicyEngine : politique de notification effective d'un compte.
 // Fonctions pures de l'heure courante : aucun minuteur n'a besoin d'expirer au
 // bon moment, un recalcul suffit (tick, retour de veille, changement d'heure).
 
@@ -37,7 +37,7 @@ export interface EffectivePolicy {
   sound: boolean;
   showPreview: boolean;
   badge: boolean;
-  /** Couper le son de la page quand le compte est caché (§12). */
+  /** Couper le son de la page quand le compte est caché. */
   muteAudioWhenHidden: boolean;
 }
 
@@ -115,7 +115,7 @@ export function focusModeFor(profile: FocusProfile, accountId: string): Mode | n
   return profile.modes[accountId] ?? profile.othersMode ?? null;
 }
 
-// --- Politique effective (§13) -----------------------------------------------------
+// --- Politique effective -----------------------------------------------------------
 
 /**
  * Priorité : Snooze manuel > Focus > horaire > normal.
@@ -181,7 +181,7 @@ export interface SnoozeOptions {
 const DEFAULT_MORNING = { hour: 8, minute: 0 };
 
 /**
- * Fin d'un Snooze selon le préréglage choisi (§12) ; null = jusqu'à réactivation.
+ * Fin d'un Snooze selon le préréglage choisi ; null = jusqu'à réactivation.
  * « Demain matin » avant l'heure du matin (ex. 1 h du matin) vise le matin même.
  * « Lundi » un lundi avant l'heure du matin vise ce lundi-là.
  */
@@ -215,7 +215,7 @@ export function snoozeOverride(preset: SnoozePreset, now: Date, options: SnoozeO
 }
 
 /**
- * Réactivation manuelle (§13) : si Focus ou horaire imposent un Snooze, crée un
+ * Réactivation manuelle : si Focus ou horaire imposent un Snooze, crée un
  * override « normal » jusqu'à leur prochaine transition ; sinon supprime l'override.
  */
 export function resumeOverride(account: PolicyAccount, context: PolicyContext): ManualOverride | undefined {
@@ -224,7 +224,7 @@ export function resumeOverride(account: PolicyAccount, context: PolicyContext): 
   return { mode: "normal", until: withoutManual.until ? withoutManual.until.toISOString() : null };
 }
 
-/** Retire un override expiré (§13 : « ignoré, puis nettoyé »). */
+/** Retire un override expiré : il est ignoré, puis nettoyé. */
 export function pruneExpiredOverride<T extends PolicyAccount>(account: T, now: Date): T {
   if (account.manualOverride && !isOverrideActive(account.manualOverride, now)) {
     const { manualOverride: _expired, ...rest } = account;

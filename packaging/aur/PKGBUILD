@@ -1,6 +1,6 @@
 # Maintainer: chapdel <iamchapdel@gmail.com>
 #
-# Paquet AUR « -bin » (§41) : réempaquette l'archive tar.gz publiée par electron-builder.
+# Paquet AUR « -bin » : réempaquette l'archive tar.gz publiée par electron-builder.
 # Avant publication : publier la release, mettre à jour pkgver et les sommes (updpkgsums).
 
 pkgname=whathush-bin

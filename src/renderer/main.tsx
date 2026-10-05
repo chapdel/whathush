@@ -1,7 +1,7 @@
 // Fenêtre principale : barre latérale des comptes et zone d'affichage.
 // Les vues WhatsApp sont des couches natives posées au-dessus de la zone
 // d'affichage : on n'y dessine que ce qui doit se voir quand aucune vue ne
-// l'est (accueil, veille, erreur), et les modales masquent les vues (§29).
+// l'est (accueil, veille, erreur), et les modales masquent les vues.
 
 import { StrictMode, useCallback, useEffect, useState, useRef, type MouseEvent } from "react";
 import { createRoot } from "react-dom/client";
@@ -33,7 +33,7 @@ function ShortcutsModal({ onClose }: { onClose(): void }) {
   );
 }
 
-/** F14 : lecture en cours (ou en pause) dans un compte, avec Pause / Reprendre. */
+/** Lecture en cours (ou en pause) dans un compte, avec Pause / Reprendre. */
 function NowPlaying({ state, collapsed }: { state: ShellState; collapsed: boolean }) {
   const media = state.nowPlaying;
   if (!media) return null;
@@ -53,7 +53,7 @@ function NowPlaying({ state, collapsed }: { state: ShellState; collapsed: boolea
   );
 }
 
-/** F2 : téléchargements en cours, avec leur progression ; ouvre l'historique. */
+/** Téléchargements en cours, avec leur progression ; ouvre l'historique. */
 function DownloadsIndicator({ state, collapsed }: { state: ShellState; collapsed: boolean }) {
   const { active, progress } = state.downloads;
   if (active === 0) return null;
@@ -72,7 +72,7 @@ function DownloadsIndicator({ state, collapsed }: { state: ShellState; collapsed
 /** Dernier zoom montré : la barre latérale remontée (après un verrou) ne le remontre pas. */
 let shownZoomSequence = 0;
 
-/** F1 : zoom qui vient de changer, montré dans la barre latérale (jamais sur la vue). */
+/** Zoom qui vient de changer, montré dans la barre latérale (jamais sur la vue). */
 function ZoomToast({ state }: { state: ShellState }) {
   const toast = state.zoomToast;
   const [visible, setVisible] = useState<number | null>(null);
@@ -87,7 +87,7 @@ function ZoomToast({ state }: { state: ShellState }) {
   return <div className="zoom-toast" role="status">{t("shell.zoom", { percent: toast.percent })}</div>;
 }
 
-/** F6 : écran de verrouillage, rendu par la coque ; les vues WhatsApp sont masquées. */
+/** Écran de verrouillage, rendu par la coque ; les vues WhatsApp sont masquées. */
 function LockScreen({ state }: { state: ShellState }) {
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
@@ -179,7 +179,7 @@ function menuAt(event: MouseEvent, build: (x: number, y: number) => void, anchor
   }
 }
 
-/** §31 : glisser un compte pour le déplacer ; l'ordre est celui de Ctrl+1…9. */
+/** Glisser un compte pour le déplacer ; l'ordre est celui de Ctrl+1…9. */
 function reorder(state: ShellState, draggedId: string, targetId: string): void {
   if (draggedId === targetId) return;
   const ids = state.accounts.map((account) => account.id).filter((id) => id !== draggedId);
@@ -398,7 +398,7 @@ function AddAccountModal({ usedColors, onClose }: { usedColors: string[]; onClos
           <div className="field"><span>{t("ui.icon")}</span><AccountIconPicker value={icon} onChange={setIcon} /></div>
           <div className="field"><span>{t("ui.color")}</span><Swatches value={color} onChange={setColor} /></div>
         </div></details>
-        {/* §7 : contraintes WhatsApp à connaître avant de scanner. */}
+        {/* Contraintes WhatsApp à connaître avant de scanner. */}
         <ul className="hint hint-list">
           <li>
             {t("add.hintPhoneBefore")} <strong>{t("add.hintPhonePath")}</strong>{t("add.hintPhoneAfter")}
@@ -424,7 +424,7 @@ function localInputValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** §12 : Snooze jusqu'à une date choisie. */
+/** Snooze jusqu'à une date choisie. */
 function SnoozeDateModal({ account, onClose }: { account: AccountItem | undefined; onClose(): void }) {
   const [value, setValue] = useState(() => localInputValue(new Date(Date.now() + 24 * 60 * 60_000)));
   const until = new Date(value);
@@ -510,7 +510,7 @@ function App() {
 
   useEffect(() => api.onRequestAddAccount(openAdd), [openAdd]);
   useEffect(() => api.onRequestShortcuts(() => setModal({ kind: "shortcuts" })), []);
-  // F6 : le verrou ferme toute modale ouverte.
+  // Le verrou ferme toute modale ouverte.
   const locked = state?.lock.locked ?? false;
   useEffect(() => {
     if (locked) setModal(null);
@@ -526,7 +526,7 @@ function App() {
     if (modal?.kind === "choose-link") setHandledLink(modal.linkId);
     setModal(null);
   }, [modal]);
-  // §29 : pendant une modale, les vues WhatsApp sont masquées.
+  // Pendant une modale, les vues WhatsApp sont masquées.
   useEffect(() => {
     api.command({ type: "set-modal", open: modal !== null });
   }, [modal]);

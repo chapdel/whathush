@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CRASH_WINDOW_MS, hasWebContents, onRendererGone, transition } from "../../src/main/core/lifecycle";
 
 describe("transition", () => {
-  it("suit le parcours nominal d'un compte (§2.1)", () => {
+  it("suit le parcours nominal d'un compte", () => {
     expect(transition("sleeping", "wake")).toBe("loading");
     expect(transition("loading", "link-required")).toBe("needs_qr");
     expect(transition("needs_qr", "linked")).toBe("ready");
@@ -37,7 +37,7 @@ describe("transition", () => {
   });
 });
 
-describe("onRendererGone (§32)", () => {
+describe("onRendererGone", () => {
   it("recrée avec un délai croissant puis abandonne au 4e crash en 5 minutes", () => {
     let crashes: number[] = [];
     const delays: Array<number | "give-up"> = [];

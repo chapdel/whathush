@@ -1,5 +1,5 @@
-// Verrouillage par code (F6). Verrou d'interface : il empêche une personne devant
-// l'écran de lire les conversations ; il ne chiffre pas les sessions (§27).
+// Verrouillage par code. Verrou d'interface : il empêche une personne devant
+// l'écran de lire les conversations ; il ne chiffre pas les sessions.
 // - empreinte scrypt (node:crypto), sel aléatoire, comparaison à temps constant ;
 // - délai croissant après un échec, conservé au redémarrage ;
 // - déclencheurs : démarrage, fenêtre masquée, inactivité, verrouillage de la session.

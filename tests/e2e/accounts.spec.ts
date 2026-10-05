@@ -22,7 +22,7 @@ test.afterAll(async () => {
 
 const accountRow = (label: string) => harness.shell.locator(`[data-account="${label}"]`);
 
-test("deux comptes isolés, non-lus et bascule (§4, §9, §11)", async () => {
+test("deux comptes isolés, non-lus et bascule", async () => {
   const { app } = harness;
   await expect(accountRow("Personnel").locator(".badge").first()).toHaveText("3");
 
@@ -43,7 +43,7 @@ test("deux comptes isolés, non-lus et bascule (§4, §9, §11)", async () => {
 
   await accountRow("Personnel").click();
   await expect.poll(async () => (await state(app)).activeId).toBe(personnel);
-  // Seule la vue du compte affiché est visible. La règle « page hidden » du §9 est
+  // Seule la vue du compte affiché est visible. La règle « page hidden » est
   // vérifiée par tests/native (Playwright émule le focus et fausse visibilityState).
   expect(await app.evaluate(() => (globalThis as any).__whathush.viewsManager().shown())).toBe(personnel);
 
@@ -51,7 +51,7 @@ test("deux comptes isolés, non-lus et bascule (§4, §9, §11)", async () => {
   await screenshot(harness, "03-deux-comptes");
 });
 
-test("notifications : interception, préfixe du compte et clic (§10)", async () => {
+test("notifications : interception, préfixe du compte et clic", async () => {
   const { app } = harness;
   await inView(app, travail, 'fake.notify("Marie", "On se voit demain ?", "chat-marie")');
   await expect.poll(async () => (await probe(app)).notifications.length).toBe(1);
@@ -68,7 +68,7 @@ test("notifications : interception, préfixe du compte et clic (§10)", async ()
   await waitForAccount(app, "Travail", (account) => account.unread === 0);
 });
 
-test("Snooze manuel : plus de notification, état affiché (§12)", async () => {
+test("Snooze manuel : plus de notification, état affiché", async () => {
   const { app } = harness;
   const before = (await probe(app)).notifications.length;
   await command(app, { type: "snooze", id: travail, preset: { kind: "minutes", minutes: 30 } });
@@ -85,7 +85,7 @@ test("Snooze manuel : plus de notification, état affiché (§12)", async () => 
   await expect.poll(async () => (await probe(app)).notifications.length).toBe(before + 1);
 });
 
-test("Focus « appels uniquement » : messages bloqués, appels transmis (§12, §14)", async () => {
+test("Focus « appels uniquement » : messages bloqués, appels transmis", async () => {
   const { app } = harness;
   const profileId = "5f0c3a1e-8b2d-4c6e-9f10-a1b2c3d4e5f6";
   await command(app, { type: "save-focus-profile", profile: { id: profileId, name: "Réunion", modes: { [travail]: "calls-only" }, othersMode: "snoozed" } });
@@ -106,7 +106,7 @@ test("Focus « appels uniquement » : messages bloqués, appels transmis (§12, 
   await waitForAccount(app, "Travail", (account) => account.policy.mode === "normal");
 });
 
-test("appel en cours : détecté et protège de la veille (§16, §19)", async () => {
+test("appel en cours : détecté et protège de la veille", async () => {
   const { app } = harness;
   await inView(app, travail, "fake.mic()");
   await waitForAccount(app, "Travail", (account) => account.inCall);
@@ -116,7 +116,7 @@ test("appel en cours : détecté et protège de la veille (§16, §19)", async (
   await waitForAccount(app, "Travail", (account) => !account.inCall);
 });
 
-test("veille profonde puis réveil sans QR code (§16)", async () => {
+test("veille profonde puis réveil sans QR code", async () => {
   const { app, shell } = harness;
   await command(app, { type: "switch-account", id: personnel });
   await command(app, { type: "sleep-account", id: personnel });
@@ -129,7 +129,7 @@ test("veille profonde puis réveil sans QR code (§16)", async () => {
   await waitForAccount(app, "Personnel", (account) => account.lifecycle === "ready");
 });
 
-test("crash du processus d'un compte : reprise automatique (§32)", async () => {
+test("crash du processus d'un compte : reprise automatique", async () => {
   const { app } = harness;
   const pid = await app.evaluate((_electron, id) => (globalThis as any).__whathush.viewsManager().processId(id), travail);
   expect(pid).toBeGreaterThan(0);
@@ -140,7 +140,7 @@ test("crash du processus d'un compte : reprise automatique (§32)", async () => 
   expect((await state(app)).accounts.find((account) => account.id === personnel)?.lifecycle).toBe("ready");
 });
 
-test("déconnexion à distance : QR requis et avertissement (§2.1, §35)", async () => {
+test("déconnexion à distance : QR requis et avertissement", async () => {
   const { app, shell } = harness;
   await command(app, { type: "switch-account", id: travail });
   await inView(app, travail, "fake.logout()");

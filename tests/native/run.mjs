@@ -48,9 +48,9 @@ check("compte affiché A : page visible, B caché : hidden", visibility.afterA.a
 check("après bascule : A hidden, B visible", visibility.afterB.a === "hidden" && visibility.afterB.b === "visible", visibility.afterB);
 check("pendant une modale : toutes les pages hidden", visibility.duringModal.a === "hidden" && visibility.duringModal.b === "hidden", visibility.duringModal);
 check("après la modale : B de nouveau visible", visibility.afterModal.b === "visible" && visibility.afterModal.a === "hidden", visibility.afterModal);
-check("verrouillé (F6) : toutes les pages hidden", visibility.duringLock.a === "hidden" && visibility.duringLock.b === "hidden", visibility.duringLock);
+check("verrouillé : toutes les pages hidden", visibility.duringLock.a === "hidden" && visibility.duringLock.b === "hidden", visibility.duringLock);
 check("déverrouillé : B de nouveau visible", visibility.afterUnlock.b === "visible" && visibility.afterUnlock.a === "hidden", visibility.afterUnlock);
-check("Snooze (F14) : un son lancé par une page cachée reste coupé", visibility.hiddenPlayback.muted === true && visibility.hiddenPlayback.userStarted === false, visibility.hiddenPlayback);
+check("Snooze : un son lancé par une page cachée reste coupé", visibility.hiddenPlayback.muted === true && visibility.hiddenPlayback.userStarted === false, visibility.hiddenPlayback);
 
 for (const { name, ok, detail } of checks) console.log(`${ok ? "✔" : "✘"} ${name}  ${JSON.stringify(detail)}`);
 process.exit(checks.every((entry) => entry.ok) ? 0 : 1);

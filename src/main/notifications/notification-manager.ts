@@ -1,4 +1,4 @@
-// NotificationManager (§10) : reçoit les notifications interceptées par le preload,
+// NotificationManager : reçoit les notifications interceptées par le preload,
 // applique la politique du compte, affiche la notification système et ramène
 // l'utilisateur sur le bon compte et la bonne conversation au clic.
 // Les notifications sont rattachées à la page qui les a créées : une page qui
@@ -30,11 +30,11 @@ export interface NotificationDeps {
   accountsInCall(): string[];
   /** Affiche le compte, ramène la fenêtre et renvoie le clic à la page d'origine. */
   open(accountId: string, webContentsId: number, notificationId: number): void;
-  /** F6 : verrouillé, ni aperçu ni photo. */
+  /** Verrouillé, ni aperçu ni photo. */
   locked(): boolean;
-  /** F10 : photo servie par un autre domaine de WhatsApp. */
+  /** Photo servie par un autre domaine de WhatsApp. */
   fetchAvatar(accountId: string, url: string): Promise<Buffer | null>;
-  /** Mode test : enregistre au lieu d'afficher (§39). */
+  /** Mode test : enregistre au lieu d'afficher. */
   sink?: (notification: ShownNotification) => void;
 }
 
@@ -81,7 +81,7 @@ export class NotificationManager {
       if (!this.pending.delete(key)) return "dropped-disabled";
       if (image) icon = nativeImage.createFromBuffer(image);
     }
-    // Verrouillé (F6), y compris pendant le téléchargement de la photo : la notification
+    // Verrouillé, y compris pendant le téléchargement de la photo : la notification
     // reste, pour ne pas manquer un appel, mais sans aperçu, sans expéditeur et sans photo.
     const locked = this.deps.locked();
     const showPreview = policy.showPreview && !locked;

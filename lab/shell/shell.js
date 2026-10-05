@@ -1,5 +1,5 @@
 // UI de la coque du lab. Volontairement sans framework : la vraie UI viendra en phase 2.
-// Rien n'est dessiné dans #stage par-dessus les vues WhatsApp (§29).
+// Rien n'est dessiné dans #stage par-dessus les vues WhatsApp.
 
 const api = window.lab;
 
@@ -88,7 +88,7 @@ function metaParts(account) {
 
   const nodes = [document.createTextNode(parts.join(" · "))];
   if (account.pageVisibility) {
-    // Page « visible » alors que le compte est caché = risque d'accusés de lecture (§9).
+    // Page « visible » alors que le compte est caché = risque d'accusés de lecture.
     const leak = account.pageVisibility === "visible" && !account.visible;
     const span = document.createElement("span");
     if (leak) span.className = "warn";

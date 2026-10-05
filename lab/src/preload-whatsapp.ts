@@ -1,5 +1,5 @@
 // Preload injecté dans chaque vue WhatsApp (sandbox + contextIsolation).
-// Niveau 1 du plan (§35) : on encapsule des API standard du navigateur
+// Niveau 1 : on encapsule des API standard du navigateur
 // (Notification, getUserMedia, getDisplayMedia), sans jamais lire le DOM de WhatsApp.
 
 import { contextBridge, ipcRenderer, webFrame } from "electron";

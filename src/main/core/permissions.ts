@@ -1,4 +1,4 @@
-// Liste blanche des permissions (§26) et réglages par compte (F8). Tout le reste est
+// Liste blanche des permissions et réglages par compte. Tout le reste est
 // refusé ; une origine autre que WhatsApp est toujours refusée, quel que soit le réglage.
 
 import { WHATSAPP_ORIGIN } from "../../shared/constants";
@@ -15,7 +15,7 @@ export const GRANTED_PERMISSIONS: ReadonlySet<string> = new Set([
   "fullscreen"
 ]);
 
-/** Gérées par les réglages du compte (F8) ; les autres restent fixées par l'application. */
+/** Gérées par les réglages du compte ; les autres restent fixées par l'application. */
 const ACCOUNT_MANAGED: ReadonlySet<string> = new Set(["media", "geolocation", "display-capture"]);
 
 /** Chromium transmet l'origine avec ou sans barre finale selon le chemin : on normalise. */
@@ -56,7 +56,7 @@ export function decidePermission(request: PermissionRequest, settings: AccountPe
 
   if (permission === "geolocation") return { decision: choice(settings.location), subject: "location" };
   // Partage d'écran : « Demander » laisse faire le portail (Wayland) ou notre dialogue de
-  // choix d'écran (X11), qui sont eux-mêmes la demande (§20).
+  // choix d'écran (X11), qui sont eux-mêmes la demande.
   if (permission === "display-capture") return { decision: settings.screenShare === "deny" ? "deny" : "grant" };
 
   const types = request.mediaTypes && request.mediaTypes.length > 0 ? request.mediaTypes : ["audio", "video"];

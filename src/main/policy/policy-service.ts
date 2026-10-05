@@ -1,4 +1,4 @@
-// Service de politique (§12 à §15) : applique le PolicyEngine pur à tous les
+// Service de politique : applique le PolicyEngine pur à tous les
 // comptes, à chaque tick, au retour de veille et à chaque changement de réglage.
 
 import { EventEmitter } from "node:events";
@@ -74,7 +74,7 @@ export class PolicyService extends EventEmitter<{ changed: [] }> {
     const now = this.now();
     this.timeZone = this.currentTimeZone();
 
-    // §13 : un override expiré est ignoré, puis nettoyé ; un Focus expiré est désactivé.
+    // Un override expiré est ignoré, puis nettoyé ; un Focus expiré est désactivé.
     const accounts = this.store.get("accounts").accounts;
     if (accounts.some((account) => pruneExpiredOverride(account, now) !== account)) {
       this.store.update("accounts", (file) => ({ ...file, accounts: file.accounts.map((account) => pruneExpiredOverride(account, now)) }));

@@ -1,10 +1,10 @@
 // Preload injecté dans chaque vue WhatsApp (sandbox + contextIsolation).
-// - Niveau 1 (§35) : encapsule Notification, getUserMedia et getDisplayMedia dans
+// - Niveau 1 : encapsule Notification, getUserMedia et getDisplayMedia dans
 //   le main world, avant le code de la page (vérifié au Lab) ; observe la lecture
-//   des éléments audio et vidéo (F14) par l'API standard des médias.
+//   des éléments audio et vidéo par l'API standard des médias.
 // - Niveau 3, isolé : l'adaptateur lit l'écran de liaison pour détecter QR et
 //   déconnexion (lecture seule, sélecteurs regroupés ci-dessous) et vérifie les
-//   repères du flou des messages (F7b).
+//   repères du flou des messages.
 // Le compte n'est jamais transmis : le processus principal le déduit de l'expéditeur.
 // Son nom non plus n'entre jamais dans la page (WhatsApp pourrait le lire).
 
@@ -42,7 +42,7 @@ function installMainWorldHooks(bridgeName: string): void {
   const scriptsBeforeOverride = document.scripts.length;
   const MAX_ICON_BYTES = 256 * 1024;
 
-  // F10 : une photo servie par une autre origine (pps.whatsapp.net) n'est pas lisible
+  // Une photo servie par une autre origine (pps.whatsapp.net) n'est pas lisible
   // ici (CORS) ; son adresse est transmise et le processus principal la télécharge.
   function crossOrigin(source: string): boolean {
     try {
@@ -75,7 +75,7 @@ function installMainWorldHooks(bridgeName: string): void {
     }
   }
 
-  // --- Notification (§10) -------------------------------------------------------
+  // --- Notification -------------------------------------------------------------
   let sequence = 0;
   const live = new Map<number, ProxyNotification>();
 
@@ -165,7 +165,7 @@ function installMainWorldHooks(bridgeName: string): void {
     };
   }
 
-  // --- Micro, caméra, partage d'écran (§19) ---------------------------------------
+  // --- Micro, caméra, partage d'écran ---------------------------------------------
   const track = (source: "getUserMedia" | "getDisplayMedia", stream: MediaStream): void => {
     for (const mediaTrack of stream.getTracks()) {
       let ended = false;
@@ -197,7 +197,7 @@ function installMainWorldHooks(bridgeName: string): void {
     }
   }
 
-  // --- Lecture des médias (F14) ---------------------------------------------------------
+  // --- Lecture des médias ---------------------------------------------------------------
   // Les éléments hors du DOM (new Audio()) ne remontent pas leurs événements jusqu'au
   // document : play() est aussi encapsulé. Les sons courts (notification, < 2,5 s) et en
   // boucle (sonnerie) ne sont pas des lectures.
@@ -292,14 +292,14 @@ try {
   void webFrame.executeJavaScript(`(${installMainWorldHooks.toString()})(${JSON.stringify(BRIDGE_NAME)})`);
 }
 
-// --- Visibilité de la page (§9 : accusés de lecture) -----------------------------
+// --- Visibilité de la page (accusés de lecture) ----------------------------------
 const sendVisibility = (): void => {
   ipcRenderer.send(CHANNELS.waVisibility, { state: document.visibilityState === "visible" ? "visible" : "hidden", hasFocus: document.hasFocus() });
 };
 document.addEventListener("visibilitychange", sendVisibility);
 window.addEventListener("DOMContentLoaded", sendVisibility);
 
-// --- Adaptateur WhatsApp (§35, niveau 3, lecture seule) ----------------------------
+// --- Adaptateur WhatsApp (niveau 3, lecture seule) ---------------------------------
 // Écran de liaison : repères relevés au Lab sur web.whatsapp.com (2026-10-04).
 const LINKING_SELECTORS = [
   '[data-testid="link-device-qr-code"]',
@@ -337,7 +337,7 @@ window.addEventListener("DOMContentLoaded", () => {
   scheduleLinkState();
 });
 
-// --- Voile de confidentialité (F7) --------------------------------------------------------
+// --- Voile de confidentialité -------------------------------------------------------------
 // Le flou est appliqué par le processus principal (CSS inséré) ; ici, on signale
 // seulement le premier survol ou clic pendant le voile. Pendant un partage d'écran
 // (strict), seul un clic dévoile.
@@ -357,7 +357,7 @@ function onPointer(kind: "hover" | "click"): void {
 window.addEventListener("pointermove", (event) => event.isTrusted && onPointer("hover"), { capture: true, passive: true });
 window.addEventListener("pointerdown", (event) => event.isTrusted && onPointer("click"), { capture: true, passive: true });
 
-// F7b, expérimental : les repères du flou des messages existent-ils encore ? Relevé une
+// Expérimental : les repères du flou des messages existent-ils encore ? Relevé une
 // fois les conversations affichées ; sans correspondance, la fonction se désactive.
 const MESSAGE_BLUR_SELECTORS = ['#pane-side [data-testid="cell-frame-secondary"]', "[data-pre-plain-text]"].join(",");
 let adapterChecked = false;

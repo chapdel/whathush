@@ -238,7 +238,7 @@ export function AccountIconPicker({ value, onChange }: { value: string | null; o
   );
 }
 
-/** Touches d'un raccourci (F1) : « Shift » se dit « Maj » en français. */
+/** Touches d'un raccourci : « Shift » se dit « Maj » en français. */
 export function ShortcutKeys({ keys }: { keys: readonly string[] }) {
   return <span className="keys">{keys.map((key) => <kbd key={key}>{key === "Shift" ? t("keys.shift") : key}</kbd>)}</span>;
 }

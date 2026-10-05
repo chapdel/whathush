@@ -1,5 +1,5 @@
 // Injecté dans le processus principal (NODE_OPTIONS=--require) par run.mjs.
-// Vérifie la règle de visibilité du §9 sans Playwright : Playwright émule le
+// Vérifie la règle de visibilité sans Playwright : Playwright émule le
 // focus des pages qu'il pilote, ce qui fausse document.visibilityState.
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -45,14 +45,14 @@ async function until(condition, timeout = 15000) {
   const duringModal = await settle("hidden", "hidden");
   application.accounts.setModal(false);
   const afterModal = await settle("hidden", "visible");
-  // F6 : verrouillé, aucune page WhatsApp n'est visible, même celle du compte affiché.
+  // Verrouillé, aucune page WhatsApp n'est visible, même celle du compte affiché.
   await application.lock.setCode(null, "1234");
   application.lock.trigger("manual");
   const duringLock = await settle("hidden", "hidden");
   await application.lock.unlock("1234");
   const afterUnlock = await settle("hidden", "visible");
 
-  // F14 : une page cachée en Snooze qui lance un son d'elle-même reste coupée (son
+  // Une page cachée en Snooze qui lance un son d'elle-même reste coupée (son
   // origine se mesure à la vraie visibilité, que Playwright fausserait).
   application.policy.snooze(a.id, { kind: "minutes", minutes: 60 });
   await until(() => views.webContents(a.id).isAudioMuted());

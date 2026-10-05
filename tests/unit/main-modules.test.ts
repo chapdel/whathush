@@ -31,7 +31,7 @@ const item = (overrides: Partial<AccountItem> = {}): AccountItem => ({
 
 const labels = (items: MenuItemModel[]): string[] => items.map((entry) => (entry.kind === "separator" ? "—" : entry.label));
 
-describe("permissions (§26)", () => {
+describe("permissions", () => {
   it("normalise l'origine, avec ou sans barre finale", () => {
     expect(normalizeOrigin("https://web.whatsapp.com/")).toBe("https://web.whatsapp.com");
     expect(normalizeOrigin("pas une url")).toBe("");
@@ -47,7 +47,7 @@ describe("permissions (§26)", () => {
   });
 });
 
-describe("adaptateur WhatsApp (§35)", () => {
+describe("adaptateur WhatsApp", () => {
   it("traduit l'écran de liaison et l'interface des conversations", () => {
     expect(linkStateEvent("loading", { linking: true, chats: false }, false)).toBe("link-required");
     expect(linkStateEvent("loading", { linking: false, chats: true }, false)).toBe("session-valid");
@@ -63,7 +63,7 @@ describe("adaptateur WhatsApp (§35)", () => {
   });
 });
 
-describe("veille automatique (§17)", () => {
+describe("veille automatique", () => {
   const base = { id: "a", autoSleepAfterMinutes: 30, sleeping: false, active: false, inCall: false, hiddenSince: NOW.getTime() - 31 * 60_000 };
   it("endort un compte caché depuis assez longtemps", () => {
     expect(accountsToAutoSleep([base], NOW.getTime())).toEqual(["a"]);
@@ -79,7 +79,7 @@ describe("veille automatique (§17)", () => {
   });
 });
 
-describe("téléchargements (§22)", () => {
+describe("téléchargements", () => {
   it("nettoie les noms de fichiers", () => {
     expect(safeFileName("../../etc/passwd")).toBe("_.._etc_passwd");
     expect(safeFileName(".bashrc")).toBe("bashrc");
@@ -93,7 +93,7 @@ describe("téléchargements (§22)", () => {
   });
 });
 
-describe("reconnaissance des appels (§12, expérimental)", () => {
+describe("reconnaissance des appels (expérimental)", () => {
   it("reconnaît les libellés d'appel courants", () => {
     expect(looksLikeCallNotification("Paul", "Appel vocal entrant")).toBe(true);
     expect(looksLikeCallNotification("Paul", "Incoming video call")).toBe(true);
@@ -119,7 +119,7 @@ describe("formats d'affichage", () => {
     expect(initials("équipe produit")).toBe("ÉP");
     expect(initials("  ")).toBe("?");
   });
-  it("choisit le symbole et l'indication d'état (§2.4)", () => {
+  it("choisit le symbole et l'indication d'état", () => {
     expect(statusSymbol(item())).toBe("●");
     expect(statusSymbol(item({ policy: { mode: "snoozed", source: "manual", until: null } }))).toBe("◐");
     expect(statusSymbol(item({ lifecycle: "sleeping" }))).toBe("○");
@@ -129,7 +129,7 @@ describe("formats d'affichage", () => {
   });
 });
 
-describe("menus natifs (§18, §21)", () => {
+describe("menus natifs", () => {
   it("propose Snooze, veille et réactivation selon l'état du compte", () => {
     expect(labels(accountMenu(item(), { includeRemove: false }))).toEqual(["Afficher", "—", "Snooze", "—", "Mettre en veille", "Recharger WhatsApp", "Paramètres…"]);
     const snoozed = accountMenu(item({ policy: { mode: "snoozed", source: "manual", until: null } }), { includeRemove: true });
@@ -169,7 +169,7 @@ describe("menus natifs (§18, §21)", () => {
   });
 });
 
-describe("contrat IPC (§26)", () => {
+describe("contrat IPC", () => {
   it("accepte les commandes valides et refuse le reste", () => {
     expect(CommandSchema.safeParse({ type: "switch-account", id: ID }).success).toBe(true);
     expect(CommandSchema.safeParse({ type: "snooze", id: ID, preset: { kind: "minutes", minutes: 30 } }).success).toBe(true);
@@ -185,14 +185,14 @@ describe("contrat IPC (§26)", () => {
     expect(parsed.body).toHaveLength(2000);
     expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: "javascript:alert(1)", iconUrl: null }).success).toBe(false);
     expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: "data:image/svg+xml;base64,AAAA", iconUrl: null }).success).toBe(false);
-    // F10 : seule une adresse http(s) est transmise ; l'hôte est vérifié par le processus principal.
+    // Seule une adresse http(s) est transmise ; l'hôte est vérifié par le processus principal.
     expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: null, iconUrl: "https://pps.whatsapp.net/a.jpg" }).success).toBe(true);
     expect(NotifyPayloadSchema.safeParse({ id: 1, title: "", body: "", tag: "", silent: false, icon: null, iconUrl: "file:///etc/passwd" }).success).toBe(false);
   });
 });
 
 describe("correctifs de la revue", () => {
-  it("adaptateur : un compte hors ligne qui réaffiche ses conversations est reconnecté (§34)", () => {
+  it("adaptateur : un compte hors ligne qui réaffiche ses conversations est reconnecté", () => {
     expect(linkStateEvent("offline", { linking: false, chats: true }, true)).toBe("network-restored");
   });
 
@@ -242,11 +242,11 @@ describe("correctifs de la seconde revue", () => {
     expect(adapterTimeoutEvent("ready")).toBeNull();
   });
 
-  it("l'appel en cours se voit dans le tray (§19)", () => {
+  it("l'appel en cours se voit dans le tray", () => {
     expect(statusHint(item({ inCall: true }), NOW)).toBe("En appel");
   });
 
-  it("suggère d'endormir le compte caché depuis le plus longtemps, au-delà du seuil (§17)", () => {
+  it("suggère d'endormir le compte caché depuis le plus longtemps, au-delà du seuil", () => {
     const now = NOW.getTime();
     const base = { sleeping: false, active: false, inCall: false, memoryMB: 400 };
     const inputs = [
@@ -260,7 +260,7 @@ describe("correctifs de la seconde revue", () => {
     expect(sleepSuggestion(null, inputs, now)).toBeNull();
   });
 
-  it("lit le fuseau du système depuis /etc/localtime (§13)", async () => {
+  it("lit le fuseau du système depuis /etc/localtime", async () => {
     const { timeZoneFromZoneinfoPath } = await import("../../src/main/system-timezone");
     expect(timeZoneFromZoneinfoPath("/usr/share/zoneinfo/Europe/Paris")).toBe("Europe/Paris");
     expect(timeZoneFromZoneinfoPath("../usr/share/zoneinfo/America/Argentina/Buenos_Aires")).toBe("America/Argentina/Buenos_Aires");
@@ -268,13 +268,13 @@ describe("correctifs de la seconde revue", () => {
     expect(timeZoneFromZoneinfoPath("/etc/localtime")).toBeNull();
   });
 
-  it("le menu d'un compte propose un Snooze jusqu'à une date (§12)", () => {
+  it("le menu d'un compte propose un Snooze jusqu'à une date", () => {
     const snooze = accountMenu(item(), { includeRemove: false }).find((entry) => entry.kind === "submenu" && entry.label === "Snooze");
     expect(snooze && snooze.kind === "submenu" ? labels(snooze.items).at(-1) : null).toBe("Jusqu’à une date…");
   });
 });
 
-describe("identité visuelle des comptes (§2.4)", () => {
+describe("identité visuelle des comptes", () => {
   const luminance = (hex: string) =>
     [0, 2, 4]
       .map((offset) => parseInt(hex.slice(1 + offset, 3 + offset), 16) / 255)
@@ -289,7 +289,7 @@ describe("identité visuelle des comptes (§2.4)", () => {
     }
   });
 
-  it("aucune couleur de la palette n'est le vert de WhatsApp (§38)", async () => {
+  it("aucune couleur de la palette n'est le vert de WhatsApp", async () => {
     const { ACCOUNT_COLORS, DEFAULT_ACCOUNT_COLOR } = await import("../../src/shared/constants");
     const whatsappGreens = ["#25d366", "#128c7e", "#075e54", "#00a884"];
     for (const { value } of ACCOUNT_COLORS) expect(whatsappGreens).not.toContain(value.toLowerCase());

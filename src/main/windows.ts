@@ -1,5 +1,5 @@
 // Fenêtres de la coque : fenêtre principale (barre latérale + vues WhatsApp) et
-// fenêtre des paramètres (§29 : jamais d'overlay React au-dessus des vues).
+// fenêtre des paramètres (jamais d'overlay React au-dessus des vues).
 
 import { BrowserWindow, nativeTheme, type WebContents } from "electron";
 import path from "node:path";

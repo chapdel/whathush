@@ -1,4 +1,4 @@
-// CallCoordinator (§19) : sait quel compte utilise le micro, la caméra ou le
+// CallCoordinator : sait quel compte utilise le micro, la caméra ou le
 // partage d'écran, à partir du wrapper getUserMedia/getDisplayMedia du preload.
 // Le décompte se fait par page (vue principale ou popup d'un compte) : une page
 // qui navigue ou se ferme perd ses pistes sans événement « ended », d'où resetPage.
@@ -32,7 +32,7 @@ export class CallCoordinator extends EventEmitter<{ changed: [] }> {
     return false;
   }
 
-  /** F7 : un partage d'écran est en cours (dans n'importe quel compte). */
+  /** Un partage d'écran est en cours (dans n'importe quel compte). */
   sharingScreen(): boolean {
     for (const page of this.pages.values()) if ((page.counts.get("getDisplayMedia:video") ?? 0) > 0) return true;
     return false;

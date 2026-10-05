@@ -1,4 +1,4 @@
-// Photos des notifications (F10). Une photo servie par un autre domaine de WhatsApp
+// Photos des notifications. Une photo servie par un autre domaine de WhatsApp
 // peut être refusée à la page ; le processus principal la télécharge alors lui-même,
 // avec la session du compte, seulement depuis les hôtes de WhatsApp.
 

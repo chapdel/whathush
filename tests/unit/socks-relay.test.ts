@@ -98,7 +98,7 @@ function socksRequest(relayPort: number, targetPort: number, payload: string): P
   });
 }
 
-describe("relais SOCKS5 local (F9)", () => {
+describe("relais SOCKS5 local", () => {
   it("relaie une connexion en s'authentifiant auprès du proxy amont", async () => {
     const target = await echoServer();
     const upstream = await upstreamProxy("alice", "s3cr3t");

@@ -1,4 +1,4 @@
-// Fabrique de sessions (§4) : tout le durcissement d'une partition passe ici.
+// Fabrique de sessions : tout le durcissement d'une partition passe ici.
 // Les handlers Electron sont attachés à une session : une session créée ailleurs
 // garderait le comportement par défaut (toutes permissions accordées).
 
@@ -17,12 +17,12 @@ export interface SessionDeps {
   log: Logger;
   onDownload: (accountId: string, item: DownloadItem) => void;
   spellcheck(): SpellcheckPlan;
-  /** F8 : réglages du compte, relus à chaque demande. */
+  /** Réglages du compte, relus à chaque demande. */
   permissions(accountId: string): AccountPermissions;
-  /** F8 : « Demander » ; « always » met le réglage du compte à « Autoriser ». */
+  /** « Demander » ; « always » met le réglage du compte à « Autoriser ». */
   askPermission(accountId: string, subject: PermissionSubject): Promise<"deny" | "once" | "always">;
   /**
-   * §20 : sous Wayland, le portail système fait choisir l'écran. Sous X11, rien ne le
+   * Sous Wayland, le portail système fait choisir l'écran. Sous X11, rien ne le
    * fait : on demande confirmation et on fait choisir l'écran. null = refus.
    */
   chooseScreen(accountId: string, sources: DesktopCapturerSource[]): Promise<DesktopCapturerSource | null>;
@@ -36,7 +36,7 @@ export function usesWaylandPortal(ozonePlatform: string): boolean {
 const hardened = new WeakSet<Session>();
 
 export function chromeUserAgent(): string {
-  // §5 : le moteur réellement utilisé, sans la mention Electron.
+  // Le moteur réellement utilisé, sans la mention Electron.
   const major = process.versions.chrome.split(".")[0];
   const arch = process.arch === "arm64" ? "aarch64" : "x86_64";
   return `Mozilla/5.0 (X11; Linux ${arch}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
@@ -50,7 +50,7 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
 
   ses.setUserAgent(deps.userAgent);
 
-  // §26 et F8 : liste blanche par origine d'abord, puis réglage du compte.
+  // Liste blanche par origine d'abord, puis réglage du compte.
   ses.setPermissionRequestHandler((_webContents, permission, callback, details) => {
     const mediaTypes = (details as { mediaTypes?: string[] }).mediaTypes;
     const outcome = decidePermission({ permission, origin: details.requestingUrl, ...(mediaTypes ? { mediaTypes } : {}) }, deps.permissions(accountId), whatsappOrigin);
@@ -80,7 +80,7 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
 
   ses.setDevicePermissionHandler(() => false);
 
-  // §20 : sous Wayland, desktopCapturer ouvre le sélecteur du portail système.
+  // Sous Wayland, desktopCapturer ouvre le sélecteur du portail système.
   // Seul le type « screen » est demandé, pour éviter un double sélecteur.
   ses.setDisplayMediaRequestHandler((request, callback) => {
     if (decidePermission({ permission: "display-capture", origin: request.securityOrigin }, deps.permissions(accountId), whatsappOrigin).decision !== "grant") {
@@ -102,7 +102,7 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
 
   ses.on("will-download", (_event, item) => deps.onDownload(accountId, item));
 
-  // F5 : un téléchargement demandé alors qu'il est bloqué signale un dictionnaire
+  // Un téléchargement demandé alors qu'il est bloqué signale un dictionnaire
   // embarqué introuvable (nom de fichier changé par une version d'Electron).
   ses.on("spellcheck-dictionary-initialized", (_event, language) => log.info("spellcheck-ready", { accountId, language }));
   ses.on("spellcheck-dictionary-download-begin", (_event, language) => log.info("spellcheck-download", { accountId, language }));
@@ -111,7 +111,7 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
   return ses;
 }
 
-/** F5, §24 : jamais de téléchargement depuis Google sans choix explicite d'une langue non embarquée. */
+/** Jamais de téléchargement depuis Google sans choix explicite d'une langue non embarquée. */
 export function applySpellcheck(ses: Session, plan: SpellcheckPlan): void {
   ses.setSpellCheckerDictionaryDownloadURL(plan.allowGoogle ? GOOGLE_DICTIONARY_URL : BLOCKED_DICTIONARY_URL);
   ses.setSpellCheckerEnabled(plan.languages.length > 0);

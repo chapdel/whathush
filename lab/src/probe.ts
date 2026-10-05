@@ -1,7 +1,7 @@
 // Sonde sans compte (npm run probe) : charge le vrai web.whatsapp.com dans une
 // partition jetable et relève ce qui est observable avant toute connexion.
 // Diagnostic de lab uniquement : la lecture du texte de la page (niveau 3) n'a
-// pas sa place dans le produit (§35).
+// pas sa place dans le produit.
 
 import fs from "node:fs";
 import path from "node:path";

@@ -342,7 +342,7 @@ export const fr = {
   "about.data": "Données",
   "about.logs": "Journaux",
   "about.openLogs": "Ouvrir le dossier des journaux",
-  // --- Raccourcis et zoom (F1) ----------------------------------------------------------
+  // --- Raccourcis et zoom ---------------------------------------------------------------
   "shortcut.switchAccount": "Afficher le compte 1 à 9",
   "shortcut.nextAccount": "Compte suivant",
   "shortcut.previousAccount": "Compte précédent",
@@ -370,7 +370,7 @@ export const fr = {
   "appearance.whatsappTheme": "Pour que WhatsApp suive ce thème : dans WhatsApp, Paramètres → Discussions → Thème → « Défaut du système ».",
   "notice.themeHint": "« {label} » est connecté. Pour que WhatsApp suive le thème de l’application : dans WhatsApp, Paramètres → Discussions → Thème → « Défaut du système ».",
 
-  // --- Lecture des médias (F14) -------------------------------------------------------------
+  // --- Lecture des médias -------------------------------------------------------------------
   "media.voiceMessage": "Message vocal",
   "media.video": "Vidéo",
   "media.nowPlaying": "En cours de lecture — {label}",
@@ -384,7 +384,7 @@ export const fr = {
   "general.exclusivePlayback": "Une seule lecture à la fois",
   "general.exclusivePlaybackDetail": "Démarrer un message vocal met en pause celui des autres comptes.",
 
-  // --- Téléchargements (F2) -------------------------------------------------------------------
+  // --- Téléchargements ------------------------------------------------------------------------
   "section.downloads": "Téléchargements",
   "downloads.intro": "Fichiers reçus dans WhatsApp et enregistrés sur cet ordinateur.",
   "downloads.empty": "Aucun téléchargement pour l’instant.",
@@ -407,7 +407,7 @@ export const fr = {
   "downloads.active": { one: "{count} téléchargement en cours", other: "{count} téléchargements en cours" },
   "downloads.meta": "{account} · {size} · {date}",
 
-  // --- Diagnostic (F3) ---------------------------------------------------------------------------
+  // --- Diagnostic --------------------------------------------------------------------------------
   "about.report": "Créer un rapport de diagnostic",
   "about.reportDetail": "Un fichier texte sans contenu de message ni nom de compte, à joindre vous-même à un signalement. Rien n’est envoyé.",
   "about.reportIssue": "Signaler un problème",
@@ -416,10 +416,10 @@ export const fr = {
   "menu.report": "Créer un rapport de diagnostic",
   "report.issueTitle": "Problème : ",
 
-  // --- Presse-papiers (F13) ---------------------------------------------------------------------
+  // --- Presse-papiers ---------------------------------------------------------------------------
   "context.pastePlain": "Coller comme texte brut",
 
-  // --- Verrouillage (F6) --------------------------------------------------------------------------
+  // --- Verrouillage -------------------------------------------------------------------------------
   "section.security": "Sécurité",
   "security.intro": "Verrou de l’interface et confidentialité à l’écran.",
   "lock.section": "Verrou",
@@ -472,7 +472,7 @@ export const fr = {
   "menu.lock": "Verrouiller",
   "menu.unlock": "Déverrouiller",
 
-  // --- Voile de confidentialité (F7) -------------------------------------------------------------
+  // --- Voile de confidentialité ------------------------------------------------------------------
   "veil.toggle": "Voiler les conversations",
   "veil.untoggle": "Dévoiler les conversations",
   "security.veil": "Confidentialité à l’écran",
@@ -485,7 +485,7 @@ export const fr = {
     "Messages, médias et aperçus restent flous jusqu’au survol. Dépend de la structure de WhatsApp Web : désactivé automatiquement s’il ne la reconnaît plus.",
   "notice.blurUnavailable": "Flou des messages indisponible sur « {label} » : la page de WhatsApp a changé. Le voile de la conversation entière reste disponible.",
 
-  // --- Autorisations (F8) -----------------------------------------------------------------------------
+  // --- Autorisations ----------------------------------------------------------------------------------
   "account.permissions": "Autorisations",
   "account.permissionsDetail": "Notifications et presse-papiers restent gérés par l’application.",
   "permission.microphone": "Micro",
@@ -506,7 +506,7 @@ export const fr = {
   "dialog.permissionOnce": "Autoriser cette fois",
   "dialog.permissionAlways": "Toujours pour ce compte",
 
-  // --- Proxy (F9) -----------------------------------------------------------------------------------------
+  // --- Proxy ----------------------------------------------------------------------------------------------
   "section.network": "Réseau",
   "network.intro": "Proxy utilisé pour joindre WhatsApp. Les identifiants sont chiffrés par le trousseau du système.",
   "proxy.title": "Proxy",

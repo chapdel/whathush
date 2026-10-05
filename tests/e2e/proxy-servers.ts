@@ -1,4 +1,4 @@
-// Proxys de test (F9) : HTTP avec authentification Basic, SOCKS5 avec identifiants.
+// Proxys de test : HTTP avec authentification Basic, SOCKS5 avec identifiants.
 import http from "node:http";
 import net from "node:net";
 

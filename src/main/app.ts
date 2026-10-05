@@ -1,4 +1,4 @@
-// Contrôleur de l'application : assemble les modules du §45, construit l'état
+// Contrôleur de l'application : assemble les modules, construit l'état
 // poussé vers l'UI, exécute les commandes validées et relaie les messages des pages.
 
 import {
@@ -83,22 +83,22 @@ export interface AppOptions {
   startHidden: boolean;
   devTools: boolean;
   initialArgv: string[];
-  /** Tests : origines autorisées pour les photos des notifications (F10). */
+  /** Tests : origines autorisées pour les photos des notifications. */
   avatarOrigins?: string[];
 }
 
-/** Ce que les tests de bout en bout observent (WHATHUSH_TEST=1, §39). */
+/** Ce que les tests de bout en bout observent (WHATHUSH_TEST=1). */
 export interface TestProbe {
   notifications: ShownNotification[];
   external: string[];
   downloads: Array<{ accountId: string; file: string; state: string; title: string; body: string }>;
   visibility: Record<string, string>;
   env: Record<string, unknown>;
-  /** F2, F3 : fichiers ouverts ou montrés dans leur dossier. */
+  /** Fichiers ouverts ou montrés dans leur dossier. */
   opened: Array<{ action: "open" | "show"; file: string }>;
-  /** F6 : inactivité simulée du système, en secondes. */
+  /** Inactivité simulée du système, en secondes. */
   idleSeconds: number;
-  /** F14 : messages de lecture reçus des pages (barrière positive pour les tests). */
+  /** Messages de lecture reçus des pages (barrière positive pour les tests). */
   playbackReports: number;
 }
 
@@ -108,7 +108,7 @@ const NETWORK_POLL_MS = 10_000;
 function sameServer(a: ProxyServer | null, b: ProxyServer | null): boolean {
   return Boolean(a && b && a.type === b.type && a.host.toLowerCase() === b.host.toLowerCase() && a.port === b.port);
 }
-/** Commandes acceptées pendant le verrouillage (F6). */
+/** Commandes acceptées pendant le verrouillage. */
 const ALLOWED_WHILE_LOCKED: ReadonlySet<Command["type"]> = new Set(["unlock", "forgot-lock-code", "set-modal", "dismiss-notice"]);
 
 export class Application {
@@ -142,7 +142,7 @@ export class Application {
   private sharingScreen = false;
   private readonly proxyTests: SettingsState["proxyTests"] = {};
   private lockCodeResult: SettingsState["security"]["lastCodeResult"] = null;
-  /** Dialogues natifs ouverts : refermés au verrouillage (F6). */
+  /** Dialogues natifs ouverts : refermés au verrouillage. */
   private readonly openDialogs = new Set<AbortController>();
   private readonly whatsappOrigin: string;
   private readonly userAgent = chromeUserAgent();
@@ -280,7 +280,7 @@ export class Application {
     this.policy.on("changed", () => this.applyAudio());
     this.calls.on("changed", () => {
       this.applyAudio();
-      // F7 : voile automatique au début d'un partage d'écran.
+      // Voile automatique au début d'un partage d'écran.
       const sharing = this.calls.sharingScreen();
       if (sharing !== this.sharingScreen) {
         this.sharingScreen = sharing;
@@ -294,7 +294,7 @@ export class Application {
       if (key === "accounts" || key === "schedules" || key === "focus") this.policy.recompute();
       this.pushState();
     });
-    // F6 : verrouillé, aucune page WhatsApp n'est affichée (vues et popups), les paramètres
+    // Verrouillé, aucune page WhatsApp n'est affichée (vues et popups), les paramètres
     // sont fermés et le clavier va à l'écran de verrouillage, jamais à une vue masquée.
     this.lock.on("locked", () => {
       // Un dialogue ouvert avant (supprimer un compte, autoriser le micro…) ne doit ni
@@ -340,13 +340,13 @@ export class Application {
     });
   }
 
-  /** F5 : langues du correcteur selon le mode choisi. */
+  /** Langues du correcteur selon le mode choisi. */
   private spellcheckPlan(): SpellcheckPlan {
     const preferences = this.store.get("preferences");
     return spellcheckPlan(preferences.spellcheckMode, preferences.spellcheckLanguages, app.getPreferredSystemLanguages(), session.defaultSession.availableSpellCheckerLanguages);
   }
 
-  /** F12 : langue choisie, sinon celle du système, sinon l'anglais. */
+  /** Langue choisie, sinon celle du système, sinon l'anglais. */
   private applyLocale(): void {
     const { locale: next, tag } = resolveLocale(this.store.get("preferences").language, app.getPreferredSystemLanguages());
     setLocale(next, tag);
@@ -369,7 +369,7 @@ export class Application {
     }
   }
 
-  /** §20 : sous X11, confirmation et choix de l'écran (sous Wayland, le portail l'a fait). */
+  /** Sous X11, confirmation et choix de l'écran (sous Wayland, le portail l'a fait). */
   private async chooseScreen(accountId: string, sources: Electron.DesktopCapturerSource[]): Promise<Electron.DesktopCapturerSource | null> {
     const ozone = app.commandLine.getSwitchValue("ozone-platform");
     if (usesWaylandPortal(ozone) || this.options.test) return sources[0] ?? null;
@@ -387,7 +387,7 @@ export class Application {
     return !response ? null : (sources[response - 1] ?? null);
   }
 
-  /** F8 : « Demander » ; « Toujours pour ce compte » enregistre « Autoriser ». */
+  /** « Demander » ; « Toujours pour ce compte » enregistre « Autoriser ». */
   private async askPermission(accountId: string, subject: PermissionSubject): Promise<"deny" | "once" | "always"> {
     const account = this.accounts.account(accountId);
     if (!account || this.lock.isLocked()) return "deny";
@@ -415,7 +415,7 @@ export class Application {
       openLink: (url) => this.links.handleExternal(url)
     });
     webContents.on("before-input-event", (event, input) => this.handleShortcut(event, input, webContents));
-    // Ctrl + molette : Electron ne zoome pas de lui-même, il le signale (F1).
+    // Ctrl + molette : Electron ne zoome pas de lui-même, il le signale.
     webContents.on("zoom-changed", (_event, direction) => this.zoom(direction, id));
     webContents.on("did-finish-load", () => this.veil.pageLoaded(webContents));
     webContents.once("destroyed", () => this.veil.pageGone(webContents));
@@ -428,7 +428,7 @@ export class Application {
 
   private viewBounds(): Electron.Rectangle {
     const [width = 0, height = 0] = this.mainWindow.getContentSize();
-    // F1 : la coque est zoomée ; ses dimensions CSS sont multipliées par l'échelle.
+    // La coque est zoomée ; ses dimensions CSS sont multipliées par l'échelle.
     const scale = this.interfaceScale();
     const compact = compactSidebar(width / scale, this.store.get("preferences").sidebarCollapsed);
     const sidebar = Math.round((compact ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded) * scale);
@@ -437,7 +437,7 @@ export class Application {
     return { x: sidebar, y: top, width: Math.max(0, width - sidebar), height: Math.max(0, height - top) };
   }
 
-  /** F1 : échelle de la coque et des paramètres (pas des vues WhatsApp). */
+  /** Échelle de la coque et des paramètres (pas des vues WhatsApp). */
   private applyInterfaceScale(): void {
     const factor = this.interfaceScale();
     for (const contents of [this.mainWindow.webContents, this.settingsWebContents()]) {
@@ -452,11 +452,11 @@ export class Application {
       window.on(event as "resize", () => this.views.relayout());
     }
     window.on("show", () => this.accounts.refreshVisibility());
-    // F6 et F7 : fenêtre masquée ou réduite, fenêtre qui perd le focus.
+    // Fenêtre masquée ou réduite, fenêtre qui perd le focus.
     window.on("hide", () => this.lock.trigger("hide"));
     window.on("minimize", () => this.lock.trigger("hide"));
     window.on("blur", () => this.veil.windowBlurred());
-    // F6 : la fenêtre rendrait le clavier à la dernière vue qui l'avait (masquée) ;
+    // La fenêtre rendrait le clavier à la dernière vue qui l'avait (masquée) ;
     // verrouillé, il va toujours au champ du code.
     window.on("focus", () => {
       if (this.lock.isLocked()) window.webContents.focus();
@@ -476,7 +476,7 @@ export class Application {
       this.applyInterfaceScale();
       this.pushState();
     });
-    // §32 : un plantage de la coque la recharge, sans toucher aux vues WhatsApp.
+    // Un plantage de la coque la recharge, sans toucher aux vues WhatsApp.
     window.webContents.on("render-process-gone", (_event, details) => {
       this.log.error("shell-renderer-gone", { reason: details.reason });
       this.accounts.setModal(false);
@@ -495,7 +495,7 @@ export class Application {
       this.lock.stop();
       this.proxy.stop();
     });
-    // F9 : identifiants d'un proxy HTTP(S) ; Chromium les redemande s'ils sont refusés.
+    // Identifiants d'un proxy HTTP(S) ; Chromium les redemande s'ils sont refusés.
     app.on("login", (event, contents, details, authInfo, callback) => {
       if (!authInfo.isProxy) return;
       const credentials = this.proxy.handleLogin(contents ?? null, details.url, authInfo);
@@ -503,7 +503,7 @@ export class Application {
       if (credentials) callback(credentials.username, credentials.password);
       else callback();
     });
-    // §34 : au réveil, recalculer les politiques et vérifier le réseau.
+    // Au réveil, recalculer les politiques et vérifier le réseau.
     powerMonitor.on("resume", () => {
       this.log.info("system-resume");
       this.policy.recompute();
@@ -523,12 +523,12 @@ export class Application {
     }, NETWORK_POLL_MS);
   }
 
-  // --- Raccourcis (§9, F1) ---------------------------------------------------------------
+  // --- Raccourcis ------------------------------------------------------------------------
 
   private handleShortcut(event: Electron.Event, input: Electron.Input, contents: WebContents): void {
     if (input.type !== "keyDown") return;
     const shortcut = matchShortcut(input);
-    // F6 : verrouillé, aucun raccourci de l'application, ni outils de développement (le
+    // Verrouillé, aucun raccourci de l'application, ni outils de développement (le
     // champ du code reste utilisable).
     if (this.lock.isLocked()) {
       if (shortcut || input.key === "F12") event.preventDefault();
@@ -588,13 +588,13 @@ export class Application {
         this.lockNow();
         return;
       case "paste-plain":
-        // F13 : Chromium colle déjà en texte brut avec Ctrl+Maj+V dans un champ ; la
+        // Chromium colle déjà en texte brut avec Ctrl+Maj+V dans un champ ; la
         // table ne sert ici qu'à la feuille des raccourcis.
         return;
     }
   }
 
-  /** F1 : zoom par compte, mémorisé, affiché brièvement dans la barre latérale. */
+  /** Zoom par compte, mémorisé, affiché brièvement dans la barre latérale. */
   private zoom(action: "in" | "out" | "reset", accountId: string | null = this.accounts.active()): void {
     if (!accountId) return;
     const account = this.accounts.account(accountId);
@@ -606,7 +606,7 @@ export class Application {
     this.pushState();
   }
 
-  /** F6 : « Verrouiller maintenant » ; sans code, ouvre la section Sécurité. */
+  /** « Verrouiller maintenant » ; sans code, ouvre la section Sécurité. */
   private lockNow(): void {
     if (this.lock.isEnabled()) this.lock.trigger("manual");
     else this.openSettings(undefined, "security");
@@ -646,7 +646,7 @@ export class Application {
       }
     });
     settings.webContents.on("render-process-gone", () => settings.webContents.reload());
-    // Au retour sur la fenêtre, l'état est relu (un fichier téléchargé a pu être déplacé, F2).
+    // Au retour sur la fenêtre, l'état est relu (un fichier téléchargé a pu être déplacé).
     settings.on("focus", () => this.pushState());
     this.settingsWindow.on("closed", () => {
       this.settingsWindow = null;
@@ -671,7 +671,7 @@ export class Application {
     if (origin && !origin.isDestroyed() && this.views.accountIdFor(origin) === id) origin.send(CHANNELS.waNotificationClick, notificationId);
   }
 
-  /** F11 : à la première connexion d'un compte, l'aide « thème de WhatsApp », une fois. */
+  /** À la première connexion d'un compte, l'aide « thème de WhatsApp », une fois. */
   private accountLinked(accountId: string): void {
     const account = this.accounts.account(accountId);
     if (!account || account.themeHintShown) return;
@@ -736,7 +736,7 @@ export class Application {
       downloads: this.downloads.summary(),
       zoomToast: this.zoomToast
     };
-    // F6 : verrouillé, l'interface ne reçoit ni les comptes ni les informations.
+    // Verrouillé, l'interface ne reçoit ni les comptes ni les informations.
     if (lock.locked) return { ...state, accounts: [], activeId: null, focus: { profiles: [], activeProfileId: null, until: null }, pendingLink: null, notices: [], nowPlaying: null, zoomToast: null };
     return state;
   }
@@ -827,7 +827,7 @@ export class Application {
       this.mainWindow.webContents.send(CHANNELS.shellState, state);
       if (!this.lock.isLocked()) this.settingsWebContents()?.send(CHANNELS.settingsState, this.settingsState());
       this.updateBadge(state);
-      // §21 : le menu du tray n'est reconstruit que si son contenu change (un menu
+      // Le menu du tray n'est reconstruit que si son contenu change (un menu
       // ouvert se refermerait sinon sur certains bureaux).
       const menu = trayMenu(state, new Date());
       const icon = trayIconName(state.lock.locked ? 0 : state.totalUnread, this.store.get("preferences").trayCountStyle);
@@ -845,7 +845,7 @@ export class Application {
     this.mainWindow.setTitle(total > 0 ? `(${total}) ${PRODUCT_NAME}` : PRODUCT_NAME);
   }
 
-  /** §12, F14 : son coupé pour un compte en Snooze caché, sauf appel ou lecture lancée par l'utilisateur. */
+  /** Son coupé pour un compte en Snooze caché, sauf appel ou lecture lancée par l'utilisateur. */
   private applyAudio(): void {
     const shown = this.views.shown();
     const now = Date.now();
@@ -931,7 +931,7 @@ export class Application {
         this.updateAccount(command.id, command.patch);
         return;
       case "clear-cache": {
-        // §27 : jamais IndexedDB, localStorage ni cookies (ce serait une déconnexion).
+        // Jamais IndexedDB, localStorage ni cookies (ce serait une déconnexion).
         const ses = this.sessionFor(command.id);
         await ses.clearCache();
         await ses.clearStorageData({ storages: ["cachestorage", "shadercache"] });
@@ -1154,7 +1154,7 @@ export class Application {
     }
   }
 
-  /** F14 : Pause / Reprendre, envoyé à la page qui lit. */
+  /** Pause / Reprendre, envoyé à la page qui lit. */
   private mediaControl(accountId: string, action: "pause" | "play"): void {
     const playback = this.playback.forAccount(accountId, Date.now());
     if (!playback) return;
@@ -1164,7 +1164,7 @@ export class Application {
     page.send(CHANNELS.waMediaControl, action);
   }
 
-  /** F3 : rapport écrit dans Téléchargements, puis dossier affiché ; rien n'est envoyé. */
+  /** Rapport écrit dans Téléchargements, puis dossier affiché ; rien n'est envoyé. */
   private createDiagnosticReport(): void {
     try {
       const preferences = this.store.get("preferences");
@@ -1214,7 +1214,7 @@ export class Application {
     }
   }
 
-  /** F3 : ouvre la page des tickets avec un titre prérempli ; l'utilisateur joint le rapport. */
+  /** Ouvre la page des tickets avec un titre prérempli ; l'utilisateur joint le rapport. */
   private reportProblem(): void {
     const body = `Version ${app.getVersion()} · Electron ${process.versions.electron} · ${process.env.XDG_CURRENT_DESKTOP ?? "?"} ${process.env.XDG_SESSION_TYPE ?? ""}`.trim();
     const url = `${ISSUES_URL}?title=${encodeURIComponent(t("report.issueTitle"))}&body=${encodeURIComponent(body)}`;
@@ -1222,7 +1222,7 @@ export class Application {
     else void shell.openExternal(url);
   }
 
-  /** F6 : sans le code, effacer toutes les sessions est la seule façon de déverrouiller. */
+  /** Sans le code, effacer toutes les sessions est la seule façon de déverrouiller. */
   private async forgotLockCode(): Promise<void> {
     if (!this.lock.isLocked()) return;
     const { response } = await dialog.showMessageBox(this.mainWindow, {
@@ -1247,7 +1247,7 @@ export class Application {
     this.addNotice({ id: "lock-reset", level: "warning", message: t("notice.lockReset") });
   }
 
-  /** F9 : test de la route vers WhatsApp, pour le réglage global ou un compte. */
+  /** Test de la route vers WhatsApp, pour le réglage global ou un compte. */
   private async testProxy(scope: "global" | string): Promise<void> {
     const accountId = scope === "global" ? this.accounts.accounts().find((account) => account.proxyMode === "inherit")?.id : scope;
     this.proxyTests[scope] = { ok: false, route: "", running: true };
@@ -1427,7 +1427,7 @@ export class Application {
       if (this.probe) this.probe.visibility[id] = parsed.data.state;
       if (parsed.data.state === "visible" && id !== this.views.shown()) this.log.warn("hidden-account-visible", { id });
     });
-    // F14 : lecture d'un média ; « une seule lecture à la fois » en option.
+    // Lecture d'un média ; « une seule lecture à la fois » en option.
     ipcMain.on(CHANNELS.waMediaPlayback, (event, raw: unknown) => {
       const id = this.whatsappSender(event);
       const parsed = PlaybackPayloadSchema.safeParse(raw);
@@ -1441,7 +1441,7 @@ export class Application {
       this.pushState();
     });
     ipcMain.handle(CHANNELS.waLabels, (event) => (this.whatsappSender(event) ? { voiceMessage: t("media.voiceMessage"), video: t("media.video"), product: PRODUCT_NAME } : null));
-    // F7 : survol ou clic dans une vue voilée ; auto-test du flou des messages.
+    // Survol ou clic dans une vue voilée ; auto-test du flou des messages.
     // Seule la page que l'utilisateur voit peut dévoiler : la vue affichée, ou une popup au premier plan.
     ipcMain.on(CHANNELS.waVeilReveal, (event, raw: unknown) => {
       const parsed = VeilRevealPayloadSchema.safeParse(raw);
@@ -1462,7 +1462,7 @@ export class Application {
     });
   }
 
-  // --- Mises à jour (§42) ------------------------------------------------------------------
+  // --- Mises à jour ------------------------------------------------------------------------
 
   private async checkForUpdates(): Promise<void> {
     if (!process.env.APPIMAGE || this.options.test) return;

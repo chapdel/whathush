@@ -1,6 +1,6 @@
 // Smoke test automatisé contre la fausse page WhatsApp (npm run smoke).
 // Il vérifie la mécanique du lab ; il ne remplace pas les tests manuels avec
-// de vrais comptes (matrice du §40).
+// de vrais comptes (protocole de lab/README.md).
 
 import fs from "node:fs";
 
@@ -83,22 +83,22 @@ export async function runSmoke(ctx: SmokeContext): Promise<boolean> {
     await waitFor(() => ra.lastEnv !== null && rb.lastEnv !== null);
     const userAgent = ra.lastEnv?.userAgent ?? "";
     const brands = ra.lastEnv?.brands ?? [];
-    check("User-Agent Chrome sans « Electron » (§5)", userAgent.includes("Chrome/") && !/Electron/i.test(userAgent), userAgent);
+    check("User-Agent Chrome sans « Electron »", userAgent.includes("Chrome/") && !/Electron/i.test(userAgent), userAgent);
     check("Client Hints sans « Electron »", !brands.some((brand) => /Electron/i.test(brand)), brands.join(", "));
     check(
-      "Notification remplacée avant les scripts de la page (§10)",
+      "Notification remplacée avant les scripts de la page",
       ra.lastEnv?.notificationOverridden === true && ra.lastEnv?.scriptsBeforeOverride === 0,
       `remplacée=${ra.lastEnv?.notificationOverridden} scriptsAvant=${ra.lastEnv?.scriptsBeforeOverride}`
     );
 
     check(
-      "Notifications interceptées dans les deux comptes (§10)",
+      "Notifications interceptées dans les deux comptes",
       await waitFor(() => ra.notifyCount > 0 && rb.notifyCount > 0),
       `A=${ra.notifyCount} B=${rb.notifyCount}`
     );
-    check("Non-lus lus depuis le titre (§11)", await waitFor(() => ra.unread === 3 && rb.unread === 3), `A=${ra.unread} B=${rb.unread}`);
+    check("Non-lus lus depuis le titre", await waitFor(() => ra.unread === 3 && rb.unread === 3), `A=${ra.unread} B=${rb.unread}`);
     check("Compte affiché : page visible", await waitFor(() => ra.pageVisibility === "visible"), `A=${ra.pageVisibility}`);
-    check("Compte caché : page hidden (§9)", await waitFor(() => rb.pageVisibility === "hidden"), `B=${rb.pageVisibility}`);
+    check("Compte caché : page hidden", await waitFor(() => rb.pageVisibility === "hidden"), `B=${rb.pageVisibility}`);
 
     const shellRows = async () => Number(await ctx.shellEval("document.querySelectorAll('#accounts li').length"));
     check("Coque : les deux comptes affichés dans la barre latérale", await waitForAsync(async () => (await shellRows()) === 2), `lignes=${await shellRows()}`);
@@ -136,7 +136,7 @@ export async function runSmoke(ctx: SmokeContext): Promise<boolean> {
     const envBeforeCrash = rb.envCount;
     ctx.killRenderer(b.id);
     check(
-      "Crash : recréation automatique (§32)",
+      "Crash : recréation automatique",
       await waitFor(() => rb.envCount > envBeforeCrash && rb.lifecycle === "loaded", 10_000),
       `état=${rb.lifecycle}`
     );

@@ -16,9 +16,9 @@ const SELF_TEST = process.argv.includes("--self-test");
 
 // --- Avant ready ------------------------------------------------------------------------
 
-// §38 : dossier de données fixe, indépendant du nom affiché.
+// Dossier de données fixe, indépendant du nom affiché.
 const userData = process.env.WHATHUSH_USER_DATA ?? path.join(app.getPath("appData"), DATA_DIR_NAME);
-// §27 : les partitions contiennent les sessions WhatsApp, dossier réservé à l'utilisateur.
+// Les partitions contiennent les sessions WhatsApp, dossier réservé à l'utilisateur.
 fs.mkdirSync(userData, { recursive: true, mode: 0o700 });
 fs.chmodSync(userData, 0o700);
 app.setPath("userData", userData);
@@ -31,14 +31,14 @@ if (TEST) {
 app.setName(PRODUCT_NAME);
 app.userAgentFallback = chromeUserAgent();
 // Tests : jamais de trousseau système (KWallet ou GNOME Keyring demanderaient un mot de
-// passe en plein test) ; les identifiants de proxy restent alors en mémoire (F9).
+// passe en plein test) ; les identifiants de proxy restent alors en mémoire.
 if (TEST) {
   app.commandLine.appendSwitch("password-store", "basic");
-  // Caméra et micro simulés : les demandes passent bien par nos règles (F8), sans
+  // Caméra et micro simulés : les demandes passent bien par nos règles, sans
   // dépendre du matériel de la machine (pas de use-fake-ui : il court-circuiterait la demande).
   app.commandLine.appendSwitch("use-fake-device-for-media-stream");
 }
-// §25 : saisie IME / emoji sous Wayland natif.
+// Saisie IME / emoji sous Wayland natif.
 if (process.env.XDG_SESSION_TYPE === "wayland") app.commandLine.appendSwitch("enable-wayland-ime");
 
 const targetUrl = process.env.WHATHUSH_TARGET_URL ?? WHATSAPP_URL;
@@ -48,7 +48,7 @@ const devTools = !app.isPackaged || process.env.WHATHUSH_DEVTOOLS === "1";
 
 registerRendererScheme();
 
-// §26 : aucune <webview>, jamais.
+// Aucune <webview>, jamais.
 app.on("web-contents-created", (_event, contents) => {
   contents.on("will-attach-webview", (event) => event.preventDefault());
 });
@@ -86,7 +86,7 @@ if (!SELF_TEST && !app.requestSingleInstanceLock()) {
       startHidden: SELF_TEST || process.argv.includes("--hidden") || store.get("preferences").startMinimized,
       devTools,
       initialArgv: process.argv,
-      // F10 : origine de la fausse page qui sert les photos, en test seulement.
+      // Origine de la fausse page qui sert les photos, en test seulement.
       ...(TEST && process.env.WHATHUSH_TEST_AVATAR_ORIGIN ? { avatarOrigins: [process.env.WHATHUSH_TEST_AVATAR_ORIGIN] } : {})
     });
     if (TEST) (globalThis as { __whathush?: Application }).__whathush = application;

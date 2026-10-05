@@ -1,4 +1,4 @@
-// Lecture et écriture des fichiers de configuration (§6).
+// Lecture et écriture des fichiers de configuration.
 // - écriture atomique (fichier temporaire + fsync + rename) ;
 // - validation zod et migrations selon schemaVersion ;
 // - fichier illisible : copie horodatée en .corrupt, jamais d'écrasement silencieux ;

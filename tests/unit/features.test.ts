@@ -1,4 +1,4 @@
-// Fonctions pures des fonctionnalités complémentaires (plan 1.1).
+// Fonctions pures des fonctionnalités complémentaires.
 import { describe, expect, it } from "vitest";
 import { AVATAR_CACHE_SIZE, isAllowedAvatarUrl, LruCache } from "../../src/main/core/avatar";
 import { formatReport, redact, reportFileName, tail } from "../../src/main/core/diagnostic";
@@ -15,7 +15,7 @@ const WA = "https://web.whatsapp.com";
 const ID = "4f0c1d2e-3b4a-4c5d-8e6f-7a8b9c0d1e2f";
 const key = (input: Partial<KeyInput> & { key: string }): KeyInput => ({ control: false, shift: false, alt: false, meta: false, ...input });
 
-describe("raccourcis et zoom (F1)", () => {
+describe("raccourcis et zoom", () => {
   it("chaque raccourci a un identifiant et des touches uniques", () => {
     expect(new Set(SHORTCUTS.map((shortcut) => shortcut.id)).size).toBe(SHORTCUTS.length);
     expect(new Set(SHORTCUTS.map((shortcut) => shortcut.keys.join("+"))).size).toBe(SHORTCUTS.length);
@@ -62,7 +62,7 @@ describe("raccourcis et zoom (F1)", () => {
   });
 });
 
-describe("icône du tray (F4)", () => {
+describe("icône du tray", () => {
   it("choisit l'image selon le total et le style", () => {
     expect(trayIconName(0, "number")).toBe("tray");
     expect(trayIconName(1, "number")).toBe("tray-1");
@@ -74,7 +74,7 @@ describe("icône du tray (F4)", () => {
   });
 });
 
-describe("lecture des médias (F14)", () => {
+describe("lecture des médias", () => {
   const report = (state: "playing" | "paused" | "ended", startedVisible = true) => ({ state, kind: "audio" as const, title: null, startedVisible });
 
   it("suit lecture, pause et fin par page, et en déduit l'état du compte", () => {
@@ -142,7 +142,7 @@ describe("lecture des médias (F14)", () => {
   });
 });
 
-describe("historique des téléchargements (F2)", () => {
+describe("historique des téléchargements", () => {
   const record = (id: string, startedAt: string, state: DownloadRecord["state"] = "completed"): DownloadRecord => ({
     id: `${id}0000000-0000-4000-8000-000000000000`.slice(0, 36),
     accountId: ID,
@@ -172,7 +172,7 @@ describe("historique des téléchargements (F2)", () => {
   });
 });
 
-describe("autorisations par compte (F8)", () => {
+describe("autorisations par compte", () => {
   const settings: AccountPermissions = { microphone: "allow", camera: "ask", location: "deny", screenShare: "ask" };
 
   it("refuse toujours une autre origine, quel que soit le réglage", () => {
@@ -211,7 +211,7 @@ describe("autorisations par compte (F8)", () => {
   });
 });
 
-describe("verrouillage (F6)", () => {
+describe("verrouillage", () => {
   const lock: LockSettings = { enabled: true, hash: "", salt: "", params: { N: 1024, r: 8, p: 1 }, onStart: true, onHide: false, idleMinutes: 15, onScreenLock: true };
 
   it("impose un délai croissant plafonné à 60 s", () => {
@@ -253,7 +253,7 @@ describe("verrouillage (F6)", () => {
   });
 });
 
-describe("rapport de diagnostic (F3)", () => {
+describe("rapport de diagnostic", () => {
   it("retire noms de comptes, dossier personnel, proxy, e-mails et numéros", () => {
     const text = 'compte "Équipe produit" et "Équipe" ; /home/marie/.config/mcdesk ; proxy.corp.example:3128 ; marie@exemple.fr ; +33 6 12 34 56 78';
     const output = redact(text, { labels: ["Équipe", "Équipe produit"], home: "/home/marie", proxyHosts: ["proxy.corp.example"], accountName: (n) => `Account ${n}` });
@@ -267,7 +267,7 @@ describe("rapport de diagnostic (F3)", () => {
   });
 });
 
-describe("proxy (F9)", () => {
+describe("proxy", () => {
   const server = { type: "http" as const, host: "proxy.local", port: 3128, auth: true };
   const account = { id: ID, proxyMode: "inherit" as const, proxy: null };
 
@@ -295,7 +295,7 @@ describe("proxy (F9)", () => {
   });
 });
 
-describe("photos des notifications (F10)", () => {
+describe("photos des notifications", () => {
   it("n'accepte que https://*.whatsapp.net", () => {
     expect(isAllowedAvatarUrl("https://pps.whatsapp.net/v/t61/abc.jpg?oh=1&oe=2")).toBe(true);
     expect(isAllowedAvatarUrl("https://media-cdg2-1.cdn.whatsapp.net/x")).toBe(true);

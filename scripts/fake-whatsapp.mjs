@@ -1,4 +1,4 @@
-// Fausse page WhatsApp (§39) : sert la fixture de test, puis lance l'application
+// Fausse page WhatsApp : sert la fixture de test, puis lance l'application
 // dessus avec un dossier de données séparé. Pour essayer l'interface sans compte.
 //
 //   node scripts/fake-whatsapp.mjs            → démo (npm run demo)
@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const page = path.join(root, "tests", "fixtures", "fake-whatsapp", "index.html");
 
-// Photo de profil servie par une seconde origine, comme pps.whatsapp.net (F10).
+// Photo de profil servie par une seconde origine, comme pps.whatsapp.net.
 const AVATAR = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
 function listen(server) {
@@ -25,7 +25,7 @@ export async function startFakeWhatsApp() {
   const html = fs.readFileSync(page);
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
-    // Téléchargement lent (tests F2) : l'état « en cours » est observable.
+    // Téléchargement lent (tests des téléchargements) : l'état « en cours » est observable.
     if (url.pathname === "/slow-file") {
       const name = (url.searchParams.get("name") ?? "lent.bin").replace(/[^\w.-]/g, "_");
       const total = 64 * 1024;
@@ -52,7 +52,7 @@ export async function startFakeWhatsApp() {
       response.writeHead(200, { "content-type": "image/png" });
       response.end(AVATAR);
     } else if (request.url?.startsWith("/slow-avatar.png")) {
-      // Photo lente (tests F6) : le verrou peut s'engager pendant son téléchargement.
+      // Photo lente (tests du verrouillage) : le verrou peut s'engager pendant son téléchargement.
       setTimeout(() => {
         response.writeHead(200, { "content-type": "image/png" });
         response.end(AVATAR);

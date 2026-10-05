@@ -5,7 +5,7 @@ import { BUNDLED_DICTIONARIES, bundledDictionaryFor, spellcheckPlan, systemDicti
 
 const AVAILABLE = ["de", "de-DE", "en-AU", "en-GB", "en-US", "es", "es-ES", "fr", "fr-FR", "it", "pt-BR"];
 
-describe("correcteur (F5)", () => {
+describe("correcteur", () => {
   it("associe la langue du système à un dictionnaire embarqué", () => {
     expect(bundledDictionaryFor("fr-CA")).toBe("fr");
     expect(bundledDictionaryFor("fr")).toBe("fr");

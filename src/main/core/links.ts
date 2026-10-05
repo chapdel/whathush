@@ -1,4 +1,4 @@
-// LinkClassifier (§23) : décide du sort de toute navigation ou ouverture de fenêtre
+// LinkClassifier : décide du sort de toute navigation ou ouverture de fenêtre
 // depuis une vue WhatsApp. Fonction pure, appelée par setWindowOpenHandler et
 // will-navigate.
 
@@ -18,7 +18,7 @@ export type BlockReason =
 export type LinkDecision =
   /** navigation : rester dans la vue ; window-open : popup dans la même session. */
   | { action: "allow" }
-  /** Lien de conversation : demander avec quel compte l'ouvrir (§23). */
+  /** Lien de conversation : demander avec quel compte l'ouvrir. */
   | { action: "choose-account"; webUrl: string; phone: string | null }
   /** Navigateur système, après filtrage du schéma. */
   | { action: "open-external"; url: string }

@@ -1,4 +1,4 @@
-// Lot B du plan complémentaire : verrouillage (F6), voile (F7), autorisations (F8).
+// Verrouillage, voile, autorisations.
 import { expect, test, type ElectronApplication } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +9,7 @@ const shown = (app: ElectronApplication) => app.evaluate(() => (globalThis as an
 const windows = (app: ElectronApplication) => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length);
 const normalize = (text: string) => text.replace(/\s+/g, " ");
 
-test("verrouillage (F6) : code, verrouiller, délai croissant, pavé, notifications sans aperçu", async () => {
+test("verrouillage : code, verrouiller, délai croissant, pavé, notifications sans aperçu", async () => {
   const h = await launch();
   const { app, shell } = h;
   try {
@@ -96,7 +96,7 @@ test("verrouillage (F6) : code, verrouiller, délai croissant, pavé, notificati
   }
 });
 
-test("verrouillage (F6) : inactivité, fenêtre masquée, délai conservé au redémarrage, « Code oublié »", async () => {
+test("verrouillage : inactivité, fenêtre masquée, délai conservé au redémarrage, « Code oublié »", async () => {
   const h = await launch();
   const securityFile = path.join(h.userData, "security.json");
   const failures = () => JSON.parse(fs.readFileSync(securityFile, "utf8")).failures.count as number;
@@ -235,7 +235,7 @@ test("voile (F7a) : bascule, survol, perte de focus, partage d'écran (clic seul
   }
 });
 
-test("flou des messages (F7b, expérimental) : repères reconnus, sinon désactivé avec une information", async () => {
+test("flou des messages (expérimental) : repères reconnus, sinon désactivé avec une information", async () => {
   const h = await launch();
   const { app } = h;
   const messageFilter = (id: string) => inView<string>(app, id, "getComputedStyle(document.querySelector('.msg')).filter");
@@ -261,7 +261,7 @@ test("flou des messages (F7b, expérimental) : repères reconnus, sinon désacti
   }
 });
 
-test("autorisations (F8) : caméra refusée, « Demander » puis « Toujours pour ce compte », localisation", async () => {
+test("autorisations : caméra refusée, « Demander » puis « Toujours pour ce compte », localisation", async () => {
   const h = await launch();
   const { app } = h;
   try {

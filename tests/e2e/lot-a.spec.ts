@@ -1,5 +1,5 @@
-// Lot A du plan complémentaire : presse-papiers (F13), médias (F14), zoom et
-// raccourcis (F1), téléchargements (F2), rapport de diagnostic (F3), thème (F11).
+// Presse-papiers, médias, zoom et raccourcis, téléchargements, rapport de
+// diagnostic, thème.
 // Un lancement par test : aucun état partagé, un échec n'emporte pas les suivants.
 import { expect, test, type ElectronApplication } from "@playwright/test";
 import fs from "node:fs";
@@ -30,7 +30,7 @@ const downloadsFile = (h: Harness) => {
   return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { records: [] };
 };
 
-test("presse-papiers (F13) : texte, image collée, image copiée et collage en texte brut", async () => {
+test("presse-papiers : texte, image collée, image copiée et collage en texte brut", async () => {
   const { h, ids } = await setup(["Travail"]);
   const { app } = h;
   const [travail] = ids as [string];
@@ -79,7 +79,7 @@ test("presse-papiers (F13) : texte, image collée, image copiée et collage en t
   }
 });
 
-test("médias (F14) : indicateur, Pause et Reprendre, sons courts et sonneries ignorés", async () => {
+test("médias : indicateur, Pause et Reprendre, sons courts et sonneries ignorés", async () => {
   const { h, ids } = await setup(["Personnel", "Travail"]);
   const { app, shell } = h;
   const [personnel, travail] = ids as [string, string];
@@ -123,7 +123,7 @@ test("médias (F14) : indicateur, Pause et Reprendre, sons courts et sonneries i
   }
 });
 
-test("médias (F14) : le Snooze ne coupe pas un message vocal lancé avant de changer de compte", async () => {
+test("médias : le Snooze ne coupe pas un message vocal lancé avant de changer de compte", async () => {
   const { h, ids } = await setup(["Personnel", "Travail"]);
   const { app } = h;
   const [personnel, travail] = ids as [string, string];
@@ -136,7 +136,7 @@ test("médias (F14) : le Snooze ne coupe pas un message vocal lancé avant de ch
     await command(app, { type: "switch-account", id: travail });
     await expect.poll(async () => (await state(app)).activeId).toBe(travail);
     expect(await muted(personnel)).toBe(false);
-    // Pause : sans lecture, le compte en Snooze caché a bien le son coupé (§12).
+    // Pause : sans lecture, le compte en Snooze caché a bien le son coupé.
     await command(app, { type: "media-control", id: personnel, action: "pause" });
     await expect.poll(() => inView(app, personnel, "fake.paused()")).toBe(true);
     await expect.poll(() => muted(personnel)).toBe(true);
@@ -150,7 +150,7 @@ test("médias (F14) : le Snooze ne coupe pas un message vocal lancé avant de ch
   }
 });
 
-test("médias (F14) : « une seule lecture à la fois » met en pause l'autre compte", async () => {
+test("médias : « une seule lecture à la fois » met en pause l'autre compte", async () => {
   const { h, ids } = await setup(["Personnel", "Travail"]);
   const { app } = h;
   const [personnel, travail] = ids as [string, string];
@@ -169,7 +169,7 @@ test("médias (F14) : « une seule lecture à la fois » met en pause l'autre co
   }
 });
 
-test("zoom et raccourcis (F1) : par compte, conservé à la recréation de la vue, Ctrl+molette, feuille, échelle", async () => {
+test("zoom et raccourcis : par compte, conservé à la recréation de la vue, Ctrl+molette, feuille, échelle", async () => {
   const { h, ids } = await setup(["Personnel", "Travail"]);
   const { app, shell } = h;
   const [personnel, travail] = ids as [string, string];
@@ -221,7 +221,7 @@ test("zoom et raccourcis (F1) : par compte, conservé à la recréation de la vu
   }
 });
 
-test("téléchargements (F2) : en cours visible, historique, ouvrir, dossier, introuvable, effacer, sans historique", async () => {
+test("téléchargements : en cours visible, historique, ouvrir, dossier, introuvable, effacer, sans historique", async () => {
   const { h, ids } = await setup(["Travail"]);
   const { app, shell } = h;
   const [travail] = ids as [string];
@@ -281,7 +281,7 @@ test("téléchargements (F2) : en cours visible, historique, ouvrir, dossier, in
   }
 });
 
-test("rapport de diagnostic (F3) : fichier créé sans données de compte, rien n'est envoyé, page des tickets", async () => {
+test("rapport de diagnostic : fichier créé sans données de compte, rien n'est envoyé, page des tickets", async () => {
   const { h, ids } = await setup(["Personnel", "Travail"]);
   const { app } = h;
   const [, travail] = ids as [string, string];
@@ -313,7 +313,7 @@ test("rapport de diagnostic (F3) : fichier créé sans données de compte, rien 
   }
 });
 
-test("thème (F11) : l'aide « Défaut du système » ne s'affiche qu'une fois par compte", async () => {
+test("thème : l'aide « Défaut du système » ne s'affiche qu'une fois par compte", async () => {
   const { h, ids } = await setup(["Personnel", "Travail"]);
   const { app } = h;
   const [, travail] = ids as [string, string];

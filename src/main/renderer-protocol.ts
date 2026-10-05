@@ -1,4 +1,4 @@
-// Protocole app:// pour l'interface de la coque (§26).
+// Protocole app:// pour l'interface de la coque.
 // Le fuse GrantFileProtocolExtraPrivileges est désactivé : file:// ne peut plus lire
 // dans app.asar, et c'est voulu. L'interface est servie par ce protocole, limité au
 // dossier du renderer (pas de remontée de chemin).

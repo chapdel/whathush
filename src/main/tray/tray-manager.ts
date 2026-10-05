@@ -1,4 +1,4 @@
-// TrayManager (§18, §21) : icône et menu natifs, construits depuis le modèle pur.
+// TrayManager : icône et menu natifs, construits depuis le modèle pur.
 
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 import path from "node:path";
@@ -46,8 +46,8 @@ export class TrayManager {
   }
 
   /**
-   * §21 : le clic n'est pas fiable partout, tout passe par le menu, reconstruit à chaque
-   * changement. F4 : l'image porte le nombre de non-lus (voir core/tray.ts).
+   * Le clic n'est pas fiable partout, tout passe par le menu, reconstruit à chaque
+   * changement. L'image porte le nombre de non-lus (voir core/tray.ts).
    */
   update(items: MenuItemModel[], unread: number, iconName: string, dispatch: (action: MenuAction) => void): void {
     if (!this.tray) return;

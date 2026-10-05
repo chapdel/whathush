@@ -27,7 +27,7 @@ test("paramètres : un rafraîchissement n'efface pas un horaire en cours d'édi
   }
 });
 
-test("Snooze jusqu'à une date, glisser-déposer des comptes, action d'une notice (§12, §17, §31)", async () => {
+test("Snooze jusqu'à une date, glisser-déposer des comptes, action d'une notice", async () => {
   const harness = await launch();
   const { app, shell } = harness;
   try {
@@ -52,7 +52,7 @@ test("Snooze jusqu'à une date, glisser-déposer des comptes, action d'une notic
     await expect.poll(async () => (await state(app)).accounts.map((account) => account.label)).toEqual(["Travail", "Personnel"]);
     expect((await state(app)).accounts[0]?.shortcut).toBe(1);
 
-    // Notice avec action (suggestion de mise en veille, §17).
+    // Notice avec action (suggestion de mise en veille).
     await app.evaluate(
       (_electron, id) =>
         (globalThis as any).__whathush.addNotice({

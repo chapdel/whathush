@@ -1,4 +1,4 @@
-// Photos des notifications servies par un autre domaine de WhatsApp (F10). La page
+// Photos des notifications servies par un autre domaine de WhatsApp. La page
 // ne peut pas toujours les lire (CORS) ; le processus principal les télécharge avec la
 // session du compte : hôtes de WhatsApp seulement, images de 256 Kio au plus, délai de
 // 2 s, cache en mémoire (100 entrées), jamais écrit sur le disque.

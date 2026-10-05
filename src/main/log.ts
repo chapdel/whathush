@@ -1,4 +1,4 @@
-// Journal local de diagnostic (§28) : jamais de contenu de message, jamais envoyé ailleurs.
+// Journal local de diagnostic : jamais de contenu de message, jamais envoyé ailleurs.
 // Écriture par flux (non bloquante) ; la taille est suivie en mémoire pour la rotation.
 
 import fs from "node:fs";

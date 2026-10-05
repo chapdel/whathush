@@ -1,4 +1,4 @@
-// AccountStateMachine (§2.1) et décision de reprise après crash (§32).
+// AccountStateMachine et décision de reprise après crash.
 
 import type { Lifecycle } from "../../shared/ipc";
 
@@ -48,7 +48,7 @@ export function hasWebContents(state: Lifecycle): boolean {
   return state !== "sleeping" && state !== "crashed";
 }
 
-// --- Reprise après crash (§32) --------------------------------------------------
+// --- Reprise après crash --------------------------------------------------------
 
 export const CRASH_BACKOFF_MS = [1_000, 5_000, 30_000] as const;
 export const CRASH_WINDOW_MS = 5 * 60_000;

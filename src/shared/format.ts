@@ -16,7 +16,7 @@ export function formatRemaining(until: Date, now: Date, timeZone?: string): stri
   return t("time.until", { date });
 }
 
-/** Symbole d'état d'un compte (§2.4). */
+/** Symbole d'état d'un compte. */
 export function statusSymbol(account: Pick<AccountItem, "lifecycle" | "policy">): string {
   if (account.lifecycle === "sleeping") return "○";
   if (account.lifecycle === "needs_qr" || account.lifecycle === "crashed") return "!";
@@ -27,7 +27,7 @@ export function statusSymbol(account: Pick<AccountItem, "lifecycle" | "policy">)
 
 /** Indication courte à droite du nom : appel, non-lus, Snooze restant, veille… */
 export function statusHint(account: Pick<AccountItem, "lifecycle" | "policy" | "unread" | "inCall">, now: Date): string {
-  // §19 : l'appel en cours se voit partout, y compris dans le tray.
+  // L'appel en cours se voit partout, y compris dans le tray.
   if (account.inCall) return t("status.inCall");
   if (account.lifecycle === "sleeping") return t("status.sleeping");
   if (account.lifecycle === "offline") return t("status.offline");

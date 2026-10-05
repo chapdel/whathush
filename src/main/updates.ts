@@ -1,4 +1,4 @@
-// Mises à jour de l'AppImage (§42). Les autres formats passent par leur dépôt
+// Mises à jour de l'AppImage. Les autres formats passent par leur dépôt
 // (Flathub, APT, RPM, AUR). Inactif tant qu'aucun canal de publication n'est
 // configuré : electron-builder n'écrit app-update.yml que dans ce cas.
 

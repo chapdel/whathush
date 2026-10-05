@@ -1,4 +1,4 @@
-// Reconnaissance des notifications d'appel (§12, mode « appels uniquement »).
+// Reconnaissance des notifications d'appel (mode « appels uniquement »).
 // Niveau 3 (lecture du contenu) : expérimental tant que le Lab n'a pas relevé les
 // libellés réels de WhatsApp (question ouverte n°7). Pour ne pas laisser passer un
 // message qui parle d'appel (« On se fait un appel vidéo ? »), le titre ou le corps

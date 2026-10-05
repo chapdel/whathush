@@ -1,4 +1,4 @@
-// Suivi des médias lus par les pages WhatsApp (F14). Le preload observe les éléments
+// Suivi des médias lus par les pages WhatsApp. Le preload observe les éléments
 // audio et vidéo par l'API standard (niveau 1, aucun sélecteur WhatsApp) ; ce module
 // garde l'état par page et en déduit l'état par compte. Pur : l'heure est passée.
 
@@ -25,7 +25,7 @@ export interface AccountPlayback {
   playing: boolean;
   kind: "audio" | "video";
   title: string | null;
-  /** Lecture lancée par l'utilisateur : jamais coupée par le Snooze (§12). */
+  /** Lecture lancée par l'utilisateur : jamais coupée par le Snooze. */
   userStarted: boolean;
   webContentsId: number;
   updatedAt: number;
@@ -118,7 +118,7 @@ function rank(entry: PageEntry): number {
 }
 
 /**
- * §12 et F14 : en Snooze, un compte caché a le son coupé, sauf pendant un appel ou
+ * En Snooze, un compte caché a le son coupé, sauf pendant un appel ou
  * une lecture que l'utilisateur a lancée lui-même (un message vocal ne s'interrompt pas
  * parce qu'on change de compte).
  */

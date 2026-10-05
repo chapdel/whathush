@@ -1,5 +1,5 @@
 // Feasibility Lab — processus principal.
-// Prototype jetable (phase 0, §40 du plan) : il sert à répondre aux questions
+// Prototype jetable : il sert à répondre aux questions
 // ouvertes, pas à préfigurer l'architecture finale. Les morceaux validés
 // (fabrique de sessions, interception des notifications, visibilité) seront
 // repris proprement en phase 1.
@@ -47,7 +47,7 @@ const SMOKE = MODE === "smoke";
 const PROBE = MODE === "probe";
 const ISOLATED = SMOKE || PROBE;
 const FAKE = SMOKE || process.env.LAB_FAKE === "1";
-// LAB_UA=electron garde le User-Agent par défaut d'Electron (comparaison du §5).
+// LAB_UA=electron garde le User-Agent par défaut d'Electron (pour comparaison).
 const UA_OVERRIDE = process.env.LAB_UA !== "electron";
 const PERMISSIVE = process.env.LAB_PERMISSIVE === "1";
 const LOG_CONTENT = process.env.LAB_LOG_CONTENT === "1";
@@ -60,7 +60,7 @@ const CRASH_BACKOFF_MS = [1000, 5000, 30000];
 const CRASH_WINDOW_MS = 5 * 60_000;
 const COLORS = ["#25a366", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#ec4899", "#64748b"];
 
-// Liste blanche du §26. Tout refus est journalisé : c'est ainsi qu'on découvre
+// Liste blanche des permissions. Tout refus est journalisé : c'est ainsi qu'on découvre
 // ce dont WhatsApp a réellement besoin.
 const ALLOWED_PERMISSIONS = new Set<string>([
   // Demandée par WhatsApp au chargement : protège la session contre l'éviction
@@ -234,7 +234,7 @@ function liveCount(runtime: Runtime, key: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// User-Agent (§5) et origines
+// User-Agent et origines
 // ---------------------------------------------------------------------------
 
 function chromeUserAgent(): string {
@@ -256,7 +256,7 @@ function isPermissionAllowed(permission: string, origin: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Fabrique de sessions (§4) : tout le durcissement passe ici
+// Fabrique de sessions : tout le durcissement passe ici
 // ---------------------------------------------------------------------------
 
 const hardenedSessions = new WeakSet<Session>();
@@ -293,7 +293,7 @@ function sessionFor(account: StoredAccount): Session {
 
   ses.setDevicePermissionHandler(() => false);
 
-  // §20 : sous Wayland, desktopCapturer déclenche le sélecteur du portail.
+  // Sous Wayland, desktopCapturer déclenche le sélecteur du portail.
   ses.setDisplayMediaRequestHandler((request, callback) => {
     const origin = originOf(request.securityOrigin);
     log("display-media-request", { origin, video: request.videoRequested, audio: request.audioRequested }, {
@@ -362,9 +362,9 @@ function createView(account: StoredAccount): void {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
-      // Désactivé : sous Linux, les dictionnaires seraient téléchargés chez Google (§24).
+      // Désactivé : sous Linux, les dictionnaires seraient téléchargés chez Google.
       spellcheck: false
-      // backgroundThrottling reste à true : sinon la page se croit visible (§9).
+      // backgroundThrottling reste à true : sinon la page se croit visible.
     }
   });
 
@@ -408,7 +408,7 @@ function wireWebContents(account: StoredAccount, wc: WebContents): void {
   const runtime = runtimeOf(account.id);
   const tag = { account: account.label };
 
-  // §11 : compteur de non-lus via le titre, sans lire le DOM.
+  // Compteur de non-lus via le titre, sans lire le DOM.
   wc.on("page-title-updated", (_event, title) => {
     const match = /^\((\d+)\)/.exec(title);
     const unread = match ? Number(match[1]) : 0;
@@ -446,7 +446,7 @@ function wireWebContents(account: StoredAccount, wc: WebContents): void {
 
   wc.on("before-input-event", handleShortcut);
 
-  // §23 : routage des liens et des popups.
+  // Routage des liens et des popups.
   wc.setWindowOpenHandler(({ url }) => routeWindowOpen(account, url));
   wc.on("did-create-window", (child, details) => {
     log("popup-created", { url: details.url }, tag);
@@ -503,7 +503,7 @@ function showContextMenu(wc: WebContents, params: Electron.ContextMenuParams): v
   Menu.buildFromTemplate(items).popup(win ? { window: win } : undefined);
 }
 
-// §32 : reprise après crash avec backoff, arrêt si les crashs s'enchaînent.
+// Reprise après crash avec backoff, arrêt si les crashs s'enchaînent.
 function handleCrash(account: StoredAccount, details: Electron.RenderProcessGoneDetails): void {
   const runtime = runtimeOf(account.id);
   log("render-process-gone", details, { account: account.label, level: "error" });
@@ -605,7 +605,7 @@ async function removeAccount(id: string): Promise<void> {
   const account = findAccount(id);
   if (!account) return;
   destroyView(id);
-  // §8 : vider la session, puis supprimer le dossier au prochain démarrage.
+  // Vider la session, puis supprimer le dossier au prochain démarrage.
   const ses = session.fromPartition(partitionOf(id));
   try {
     await ses.clearStorageData();
@@ -727,7 +727,7 @@ ipcMain.on("wa:notify", (event, raw: unknown) => {
   runtime.notifyCount++;
   runtime.lastNotifyId = payload.id;
 
-  // §28 : le contenu n'est journalisé que sur demande explicite (comptes de test).
+  // Le contenu n'est journalisé que sur demande explicite (comptes de test).
   const summary = LOG_CONTENT
     ? { id: payload.id, title: payload.title, body: payload.body, tag: payload.tag }
     : { id: payload.id, titleLength: payload.title.length, bodyLength: payload.body.length, tag: payload.tag };
@@ -808,7 +808,7 @@ ipcMain.on("wa:visibility", (event, raw: unknown) => {
     runtime.pageVisibility = state;
     log("page-visibility", { state, hasFocus: payload.hasFocus === true, shown: account.id === store.activeId }, {
       account: account.label,
-      // Une page « visible » alors que le compte est caché = risque d'accusés de lecture (§9).
+      // Une page « visible » alors que le compte est caché = risque d'accusés de lecture.
       level: state === "visible" && account.id !== store.activeId ? "warn" : "info"
     });
     pushState();
@@ -955,7 +955,7 @@ function updateBadge(): void {
   const supported = app.setBadgeCount(total);
   if (!badgeSupportLogged) {
     badgeSupportLogged = true;
-    log("badge-support", { supported, note: "Linux : nécessite l’API Unity LauncherEntry (§11)" });
+    log("badge-support", { supported, note: "Linux : nécessite l’API Unity LauncherEntry" });
   }
   win?.setTitle(total > 0 ? `(${total}) Feasibility Lab` : "Feasibility Lab");
 }
@@ -1086,7 +1086,7 @@ function startAccounts(): void {
       runtimeOf(account.id).lifecycle = "sleeping";
       continue;
     }
-    // §17 : démarrage échelonné, le dernier compte affiché d'abord.
+    // Démarrage échelonné, le dernier compte affiché d'abord.
     setTimeout(() => {
       const current = findAccount(account.id);
       if (current && !current.sleeping) createView(current);

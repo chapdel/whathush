@@ -1,4 +1,4 @@
-// Proxy (F9) : réglage global, exception par compte, règles Chromium. Pur.
+// Proxy : réglage global, exception par compte, règles Chromium. Pur.
 // Chromium sait s'authentifier auprès d'un proxy HTTP(S), pas d'un SOCKS5 : un
 // SOCKS5 avec identifiants passe par le relais local (proxy/socks-relay.ts).
 

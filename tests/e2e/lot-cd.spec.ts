@@ -1,4 +1,4 @@
-// Lots C et D du plan complémentaire : proxy (F9), photos des notifications (F10).
+// Proxy, photos des notifications.
 import { expect, test, type ElectronApplication } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +9,7 @@ const screens = path.resolve(import.meta.dirname, "../../test-results/screens");
 const normalize = (text: string) => text.replace(/\s+/g, " ");
 const settingsState = (app: ElectronApplication) => app.evaluate(() => JSON.parse(JSON.stringify((globalThis as any).__whathush.settingsState())));
 
-test("proxy (F9) : HTTP authentifié pour un compte seulement, test de connexion, identifiants refusés", async () => {
+test("proxy : HTTP authentifié pour un compte seulement, test de connexion, identifiants refusés", async () => {
   const proxy = await startHttpProxy("alice", "s3cr3t");
   const h = await launch();
   const { app } = h;
@@ -88,7 +88,7 @@ test("proxy (F9) : HTTP authentifié pour un compte seulement, test de connexion
   }
 });
 
-test("proxy (F9) : SOCKS5 authentifié par le relais local, réglage global hérité", async () => {
+test("proxy : SOCKS5 authentifié par le relais local, réglage global hérité", async () => {
   const socks = await startSocksProxy("bob", "m0tdepasse");
   const h = await launch();
   const { app } = h;
@@ -127,7 +127,7 @@ test("proxy (F9) : SOCKS5 authentifié par le relais local, réglage global hér
   }
 });
 
-test("photos des notifications (F10) : autre origine téléchargée par le principal, bornée et filtrée", async () => {
+test("photos des notifications : autre origine téléchargée par le principal, bornée et filtrée", async () => {
   const h = await launch();
   const { app } = h;
   const last = async () => (await probe(app)).notifications.at(-1);

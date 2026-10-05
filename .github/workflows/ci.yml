@@ -14,7 +14,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # Ubuntu 24.04 restreint les user namespaces : le sandbox Chromium en a besoin (§41).
+      # Ubuntu 24.04 restreint les user namespaces : le sandbox Chromium en a besoin.
       - name: Autoriser le sandbox Chromium
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm ci

@@ -1,4 +1,4 @@
-// Traduction des signaux de l'adaptateur WhatsApp (§35) en événements de cycle de vie.
+// Traduction des signaux de l'adaptateur WhatsApp en événements de cycle de vie.
 // L'adaptateur lit l'écran de liaison (niveau 3) ; s'il ne répond pas, le compte
 // est considéré connecté après ADAPTER_TIMEOUT_MS (mode dégradé, journalisé).
 
@@ -17,7 +17,7 @@ export function linkStateEvent(lifecycle: Lifecycle, signal: LinkStatePayload, w
   if (signal.chats) {
     if (lifecycle === "loading") return "session-valid";
     if (lifecycle === "needs_qr") return "linked";
-    // §34 : après un rechargement réussi, sortir de l'état hors ligne.
+    // Après un rechargement réussi, sortir de l'état hors ligne.
     if (lifecycle === "offline") return "network-restored";
     return null;
   }

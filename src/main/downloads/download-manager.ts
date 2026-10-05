@@ -1,4 +1,4 @@
-// DownloadManager (§22, F2). Les médias WhatsApp sont des URL blob: déchiffrées par la
+// DownloadManager. Les médias WhatsApp sont des URL blob: déchiffrées par la
 // page ; will-download les reçoit comme n'importe quel fichier.
 // Pas d'ouverture automatique d'un fichier reçu : vecteur classique de malware. Un
 // fichier ne s'ouvre que sur un clic explicite dans l'historique.
@@ -23,7 +23,7 @@ export interface DownloadDeps {
   askLocation(): boolean;
   retentionDays(): number;
   accountLabel(accountId: string): string;
-  /** F6 : verrouillé, la notification ne nomme ni le compte ni le fichier. */
+  /** Verrouillé, la notification ne nomme ni le compte ni le fichier. */
   locked(): boolean;
   /** Mode test : enregistre au lieu de notifier et d'ouvrir. */
   sink?: (event: { accountId: string; file: string; state: string; title: string; body: string }) => void;
@@ -104,7 +104,7 @@ export class DownloadManager extends EventEmitter<{ changed: [] }> {
       };
       this.save((records) => records.map((candidate) => (candidate.id === record.id ? finished : candidate)));
       this.deps.log.info("download-done", { accountId, state });
-      // Verrouillé (F6) : ni le compte ni le nom du fichier.
+      // Verrouillé : ni le compte ni le nom du fichier.
       const locked = this.deps.locked();
       const title = locked ? t("download.doneTitleLocked") : t("download.doneTitle", { label: this.deps.accountLabel(accountId) });
       const body = locked ? t("download.doneBodyLocked") : t("download.doneBody", { file: path.basename(savePath) });
@@ -197,7 +197,7 @@ export class DownloadManager extends EventEmitter<{ changed: [] }> {
     this.save((records) => records.filter((record) => record.state === "progressing"));
   }
 
-  /** F6, « Code oublié » : tout l'historique disparaît avec les sessions. */
+  /** « Code oublié » : tout l'historique disparaît avec les sessions. */
   clearAll(): void {
     this.save(() => []);
   }

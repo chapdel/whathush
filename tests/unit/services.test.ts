@@ -1,5 +1,5 @@
-// Services du processus principal, avec Electron simulé : proxy (F9), voile (F7),
-// rapport (F3), menu contextuel (F13), menus du tray (F4, F6, F14).
+// Services du processus principal, avec Electron simulé : proxy, voile,
+// rapport, menu contextuel, menus du tray.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -77,7 +77,7 @@ function service(store: ReturnType<typeof fakeStore>, accounts: AccountConfig[],
   return { proxy, notify, sessions };
 }
 
-describe("proxy (F9) : identifiants", () => {
+describe("proxy : identifiants", () => {
   it("chiffre les identifiants dans security.json et les relit au démarrage suivant", () => {
     const store = fakeStore();
     const server = { type: "http" as const, host: "proxy.local", port: 3128, auth: true };
@@ -128,7 +128,7 @@ describe("proxy (F9) : identifiants", () => {
   });
 });
 
-describe("proxy (F9) : relais SOCKS5", () => {
+describe("proxy : relais SOCKS5", () => {
   it("un seul relais pour deux applications simultanées, reconfiguré sur un mot de passe de même longueur", async () => {
     const socks = { type: "socks5" as const, host: "127.0.0.1", port: 1, auth: true };
     const store = fakeStore({ ...defaultPreferences(), proxy: { mode: "manual", server: socks } });
@@ -153,7 +153,7 @@ describe("proxy (F9) : relais SOCKS5", () => {
   });
 });
 
-describe("voile (F7) : CSS inséré", () => {
+describe("voile : CSS inséré", () => {
   function fakePage() {
     const pending: Array<(key: string) => void> = [];
     const page = {
@@ -187,7 +187,7 @@ describe("voile (F7) : CSS inséré", () => {
   });
 });
 
-describe("rapport de diagnostic (F3)", () => {
+describe("rapport de diagnostic", () => {
   it("caviarde le journal : noms de comptes (mots entiers), dossier personnel, proxy, e-mails", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rapport-"));
     cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -238,7 +238,7 @@ describe("rapport de diagnostic (F3)", () => {
   });
 });
 
-describe("menu contextuel (F13)", () => {
+describe("menu contextuel", () => {
   const target = (): ContextMenuTarget & Record<string, ReturnType<typeof vi.fn>> =>
     ({ replaceMisspelling: vi.fn(), addWordToDictionary: vi.fn(), pasteAndMatchStyle: vi.fn(), copyImageAt: vi.fn(), downloadURL: vi.fn(), inspectElement: vi.fn(), copyText: vi.fn() }) as any;
   const params = (overrides: object) => ({ misspelledWord: "", dictionarySuggestions: [], isEditable: false, editFlags: { canUndo: true, canRedo: true, canCut: true, canCopy: true, canPaste: true }, selectionText: "", mediaType: "none", srcURL: "", linkURL: "", x: 12, y: 34, ...overrides }) as any;
@@ -261,7 +261,7 @@ describe("menu contextuel (F13)", () => {
   });
 });
 
-describe("menus du tray (F4, F6, F14)", () => {
+describe("menus du tray", () => {
   const base: ShellState = {
     productName: "WhatHush",
     language: "fr",

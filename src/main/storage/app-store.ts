@@ -1,4 +1,4 @@
-// Store de l'application (§6) : les fichiers de configuration en mémoire, écrits à
+// Store de l'application : les fichiers de configuration en mémoire, écrits à
 // chaque modification (tous en 0600). Un fichier d'une version plus récente passe en
 // lecture seule pour ne pas être écrasé.
 
@@ -93,7 +93,7 @@ export class AppStore extends EventEmitter<{ change: [DocumentKey] }> {
     return true;
   }
 
-  /** §8 : supprime les partitions des comptes supprimés, avant toute création de session. */
+  /** Supprime les partitions des comptes supprimés, avant toute création de session. */
   purgePendingPartitions(partitionsDir: string): void {
     const pending = this.data.accounts.pendingPartitionDeletion;
     if (pending.length === 0) return;

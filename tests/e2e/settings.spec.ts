@@ -10,7 +10,7 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(screens, `${name}.png`) });
 }
 
-test("paramètres : comptes, horaires, Focus, apparence (§15, §26, §30, §31)", async () => {
+test("paramètres : comptes, horaires, Focus, apparence", async () => {
   const harness = await launch();
   const { app, shell } = harness;
   try {
@@ -86,7 +86,7 @@ test("paramètres : comptes, horaires, Focus, apparence (§15, §26, §30, §31)
   }
 });
 
-test("modale d'ajout : les vues WhatsApp sont masquées puis réaffichées (§29)", async () => {
+test("modale d'ajout : les vues WhatsApp sont masquées puis réaffichées", async () => {
   const harness = await launch();
   const { app, shell } = harness;
   try {
@@ -95,7 +95,7 @@ test("modale d'ajout : les vues WhatsApp sont masquées puis réaffichées (§29
     const shown = () => app.evaluate(() => (globalThis as any).__whathush.viewsManager().shown());
     expect(await shown()).toBe(id);
     await shell.getByRole("button", { name: "Ajouter un compte" }).first().click();
-    // §7 : les contraintes de liaison sont rappelées avant le scan.
+    // Les contraintes de liaison sont rappelées avant le scan.
     await expect(shell.getByText("Laissez cochée l’option « rester connecté »", { exact: false })).toBeVisible();
     await expect(shell.getByText("4 au maximum par numéro", { exact: false })).toBeVisible();
     await expect(shell.getByRole("dialog", { name: "Ajouter un compte" })).toBeVisible();

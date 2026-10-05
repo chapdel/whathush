@@ -107,7 +107,7 @@ describe("nextScheduleTransition", () => {
   });
 });
 
-describe("effectivePolicy : priorités (§13)", () => {
+describe("effectivePolicy : priorités", () => {
   const evening = at("2026-10-05T17:00:00Z"); // lundi 19:00, Travail en Snooze
   const morning = at("2026-10-05T07:00:00Z"); // lundi 09:00, Travail actif
   const focus = (modes: Record<string, "normal" | "snoozed" | "calls-only">, until: string | null = null, othersMode?: "normal" | "snoozed" | "calls-only"): ActiveFocus => ({

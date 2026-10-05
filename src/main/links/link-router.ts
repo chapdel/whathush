@@ -1,4 +1,4 @@
-// LinkRouter (§23) : applique le LinkClassifier pur aux vues WhatsApp et aux
+// LinkRouter : applique le LinkClassifier pur aux vues WhatsApp et aux
 // liens reçus du système (whatsapp://, argument de ligne de commande).
 
 import { shell, type BrowserWindow, type WebContents } from "electron";
@@ -18,7 +18,7 @@ export interface LinkRouterDeps {
   registerPopup(accountId: string, window: BrowserWindow): void;
   /** Mode test : enregistre au lieu d'ouvrir le navigateur. */
   openExternal?: (url: string) => void;
-  /** F6 : verrouillé, aucune nouvelle fenêtre WhatsApp ne s'ouvre. */
+  /** Verrouillé, aucune nouvelle fenêtre WhatsApp ne s'ouvre. */
   locked(): boolean;
 }
 

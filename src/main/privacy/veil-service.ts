@@ -1,9 +1,9 @@
-// Voile de confidentialité (F7).
+// Voile de confidentialité.
 // F7a : un flou CSS sur l'élément racine de la page (niveau 2) : aucun sélecteur de
 //   WhatsApp, donc rien à casser. Déclenché à la demande (Ctrl+Maj+H), quand la fenêtre
 //   perd le focus, ou pendant un partage d'écran (options). Le survol ou un clic dans la
 //   vue le retire jusqu'au déclenchement suivant ; pendant un partage, seul un clic.
-// F7b : flou message par message (niveau 3, expérimental) : sélecteurs de l'adaptateur,
+// Flou message par message (niveau 3, expérimental) : sélecteurs de l'adaptateur,
 //   auto-test dans la page, désactivé automatiquement s'ils ne correspondent plus.
 
 import { EventEmitter } from "node:events";
@@ -14,7 +14,7 @@ import type { Logger } from "../log";
 
 export const VEIL_CSS = "html { filter: blur(18px) saturate(.6) !important; transition: filter .12s ease-out !important; }";
 
-/** Repères de l'adaptateur (§35) pour F7b ; le même relevé est fait par le preload. */
+/** Repères de l'adaptateur pour le flou des messages ; le même relevé est fait par le preload. */
 export const MESSAGE_BLUR_CSS = [
   "[data-pre-plain-text], #main img, #main video, #pane-side [data-testid=\"cell-frame-secondary\"] { filter: blur(7px) !important; transition: filter .12s ease-out !important; }",
   "[data-pre-plain-text]:hover, #main img:hover, #main video:hover, #pane-side [data-testid=\"cell-frame-secondary\"]:hover { filter: none !important; }"
@@ -81,7 +81,7 @@ export class VeilService extends EventEmitter<{ changed: [] }> {
     this.unveil();
   }
 
-  /** Auto-test du flou des messages (F7b), rapporté par le preload. */
+  /** Auto-test du flou des messages, rapporté par le preload. */
   adapterCheck(contents: WebContents, matched: boolean): boolean {
     const known = !this.blurUnavailable.has(contents.id);
     if (matched) this.blurUnavailable.delete(contents.id);

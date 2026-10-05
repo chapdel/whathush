@@ -1,4 +1,4 @@
-// Harnais e2e (§39) : lance l'application construite contre la fausse page
+// Harnais e2e : lance l'application construite contre la fausse page
 // WhatsApp, sans fenêtre (ozone headless), dans un dossier de données jetable.
 
 import { _electron as electron, expect, type ElectronApplication, type Page } from "@playwright/test";
@@ -33,7 +33,7 @@ export async function launch(options: { userData?: string; fakeUrl?: string; pla
       WHATHUSH_USER_DATA: userData,
       WHATHUSH_TRAY: options.tray ? "1" : "0",
       ...(fake.avatarOrigin ? { WHATHUSH_TEST_AVATAR_ORIGIN: fake.avatarOrigin } : {}),
-      // Langue du système vue par l'application (F12) : le français, sauf demande.
+      // Langue du système vue par l'application : le français, sauf demande.
       ...(options.systemLanguage === "en" ? { LANGUAGE: "en_US:en", LANG: "en_US.UTF-8" } : { LANGUAGE: "fr_FR:fr", LANG: "fr_FR.UTF-8" }),
       LC_ALL: "",
       ...options.env

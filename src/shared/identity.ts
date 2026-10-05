@@ -1,4 +1,4 @@
-// Identité de l'application (§1, §38).
+// Identité de l'application.
 //
 // - PRODUCT_NAME : nom affiché. Nom public candidat, à valider par la revue de
 //   marque avant toute publication ; seul ce fichier change en cas de renommage.
@@ -12,5 +12,5 @@ export const CODENAME = "Whatsapp";
 export const EXECUTABLE_NAME = "whathush";
 export const APP_ID = "io.github.chapdel.mcdesk";
 export const DATA_DIR_NAME = "mcdesk";
-/** Page des tickets (F3), provisoire comme APP_ID tant que le dépôt n'est pas confirmé. */
+/** Page des tickets, provisoire comme APP_ID tant que le dépôt n'est pas confirmé. */
 export const ISSUES_URL = "https://github.com/chapdel/whathush/issues/new";

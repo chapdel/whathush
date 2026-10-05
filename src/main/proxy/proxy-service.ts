@@ -1,4 +1,4 @@
-// Proxy HTTP / SOCKS5 avec authentification (F9).
+// Proxy HTTP / SOCKS5 avec authentification.
 // - réglage global, exception par compte, appliqués par session.setProxy() à chaque
 //   partition avant tout chargement ;
 // - identifiants chiffrés par safeStorage dans security.json ; jamais en clair sur le

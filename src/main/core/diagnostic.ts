@@ -1,5 +1,5 @@
-// Rapport de diagnostic (F3) : texte à joindre soi-même à un signalement. Rien n'est
-// envoyé. Les journaux ne contiennent déjà aucun message (§28) ; le rapport caviarde
+// Rapport de diagnostic : texte à joindre soi-même à un signalement. Rien n'est
+// envoyé. Les journaux ne contiennent déjà aucun message ; le rapport caviarde
 // en plus les noms de comptes, le dossier personnel et les adresses de proxy.
 
 export interface RedactionInput {

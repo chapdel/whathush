@@ -3,12 +3,12 @@
 export const WHATSAPP_ORIGIN = "https://web.whatsapp.com";
 export const WHATSAPP_URL = `${WHATSAPP_ORIGIN}/`;
 
-/** Partition Chromium d'un compte (§4). Figée à la création du compte. */
+/** Partition Chromium d'un compte. Figée à la création du compte. */
 export function partitionFor(accountId: string): string {
   return `persist:wa-${accountId}`;
 }
 
-/** Dossier de la partition sous `<userData>/Partitions/` (§8). */
+/** Dossier de la partition sous `<userData>/Partitions/`. */
 export function partitionDirName(accountId: string): string {
   return `wa-${accountId}`;
 }

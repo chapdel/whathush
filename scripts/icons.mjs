@@ -1,4 +1,4 @@
-// Icônes du tray avec le nombre de non-lus (F4). Le processus principal ne sait pas
+// Icônes du tray avec le nombre de non-lus. Le processus principal ne sait pas
 // dessiner du texte sans dépendance : les variantes sont générées ici, une fois,
 // avec ImageMagick (rendu librsvg), et versionnées dans build/app-assets.
 //

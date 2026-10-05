@@ -1,4 +1,4 @@
-// AccountManager (§2, §7 à §9, §16, §32 à §34) : cycle de vie runtime des comptes.
+// AccountManager : cycle de vie runtime des comptes.
 // Il applique la machine à états pure, pilote les vues et réagit aux signaux
 // des pages (titre, adaptateur, crash, échec de chargement).
 
@@ -18,7 +18,7 @@ import type { ViewEvents, ViewManager } from "../views/view-manager";
 const STAGGER_MS = 1500;
 /** lastOpenedAt est regroupé : une bascule ne doit pas écrire sur le disque. */
 const LAST_OPENED_FLUSH_MS = 3000;
-/** §34 : nouvelle tentative de chargement d'un compte hors ligne. */
+/** Nouvelle tentative de chargement d'un compte hors ligne. */
 const OFFLINE_RETRY_MS = [5_000, 15_000, 30_000, 60_000];
 
 interface Runtime {
@@ -32,7 +32,7 @@ interface Runtime {
   offlineTimer: NodeJS.Timeout | null;
   offlineAttempts: number;
   adapterDegraded: boolean;
-  /** Connecté au moins une fois pendant cette session (§2.1, déconnexion à distance). */
+  /** Connecté au moins une fois pendant cette session (déconnexion à distance). */
   wasLinked: boolean;
 }
 
@@ -48,7 +48,7 @@ export interface AccountManagerDeps {
   pageGone(accountId: string, webContentsId: number): void;
   /** Toutes les pages du compte ont disparu (veille, suppression, crash). */
   accountGone(accountId: string): void;
-  /** Le compte vient d'être connecté (F11 : aide du thème, une fois par compte). */
+  /** Le compte vient d'être connecté (aide du thème, une fois par compte). */
   linked?(accountId: string): void;
   now?: () => number;
 }
@@ -57,7 +57,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
   private readonly runtimes = new Map<string, Runtime>();
   private activeId: string | null = null;
   private modalOpen = false;
-  /** F6 : verrouillé, aucune vue n'est affichée. */
+  /** Verrouillé, aucune vue n'est affichée. */
   private locked = false;
   private readonly now: () => number;
   private readonly lastOpened = new Map<string, string>();
@@ -115,14 +115,14 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     }
   }
 
-  // --- Démarrage (§33) ----------------------------------------------------------------
+  // --- Démarrage ----------------------------------------------------------------------
 
   start(): void {
     const accounts = this.accounts();
     const lastOpened = [...accounts].sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt))[0];
     this.activeId = lastOpened?.id ?? null;
 
-    // Le dernier compte affiché d'abord, puis les autres, échelonnés (§17).
+    // Le dernier compte affiché d'abord, puis les autres, échelonnés.
     const ordered = [...accounts].sort((a, b) => Number(b.id === this.activeId) - Number(a.id === this.activeId));
     let delay = 0;
     for (const account of ordered) {
@@ -189,7 +189,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     this.refreshVisibility();
   }
 
-  /** §34 : recharger un compte hors ligne, avec un délai croissant. */
+  /** Recharger un compte hors ligne, avec un délai croissant. */
   private scheduleOfflineRetry(id: string): void {
     const runtime = this.runtimeOf(id);
     if (runtime.offlineTimer || runtime.lifecycle !== "offline") return;
@@ -218,7 +218,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
   finishedLoad(id: string): void {
     const runtime = this.runtimeOf(id);
     if (runtime.adapterTimer) clearTimeout(runtime.adapterTimer);
-    // §35 : si l'adaptateur ne dit rien après un chargement réussi, on considère le
+    // Si l'adaptateur ne dit rien après un chargement réussi, on considère le
     // compte connecté, ou de nouveau en ligne (mode dégradé). Un échec de chargement
     // annule ce délai.
     runtime.adapterTimer = setTimeout(() => {
@@ -292,7 +292,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     }
   }
 
-  /** §34 : au réveil du PC, recharger les comptes restés hors ligne. */
+  /** Au réveil du PC, recharger les comptes restés hors ligne. */
   resumed(): void {
     for (const [id, runtime] of this.runtimes) {
       if (runtime.lifecycle === "offline") this.deps.views().reload(id);
@@ -331,7 +331,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     this.emit("changed");
     this.deps.log.info("account-removed", { id });
 
-    // §8 : vider la session maintenant, supprimer le dossier au prochain démarrage.
+    // Vider la session maintenant, supprimer le dossier au prochain démarrage.
     const ses = this.deps.sessionFor(id);
     try {
       await ses.clearStorageData();
@@ -382,7 +382,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     if (account) this.switchTo(account.id);
   }
 
-  /** §16 : refusé pendant un appel. */
+  /** Refusé pendant un appel. */
   sleep(id: string): boolean {
     const account = this.account(id);
     if (!account || account.sleeping) return false;
@@ -433,7 +433,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
   }
 
   /**
-   * Ouvre une URL WhatsApp (lien de conversation, §23) dans un compte. Refusé
+   * Ouvre une URL WhatsApp (lien de conversation) dans un compte. Refusé
    * pendant un appel : recharger la page couperait l'appel.
    */
   openUrl(id: string, url: string): boolean {
@@ -443,7 +443,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
       this.deps.notify({ id: `link-in-call-${id}`, level: "info", message: t("notice.linkInCall", { label: account.label }) });
       return false;
     }
-    // Compte endormi : le lien est la première page chargée, après son proxy (F9).
+    // Compte endormi : le lien est la première page chargée, après son proxy.
     if (account.sleeping || !this.deps.views().has(id)) this.wake(id, url);
     else this.deps.views().load(id, url);
     this.switchTo(id);
@@ -468,7 +468,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
   }
 
   /**
-   * F6, « Code oublié » : efface la session de chaque compte (il faudra rescanner les QR
+   * « Code oublié » : efface la session de chaque compte (il faudra rescanner les QR
    * codes). Les vues sont détruites avant l'effacement : rien ne reste lisible. Renvoie
    * false si un effacement a échoué : le verrou doit alors rester en place.
    */
@@ -504,7 +504,7 @@ export class AccountManager extends EventEmitter<{ changed: [] }> implements Vie
     return wiped;
   }
 
-  /** Comptes cachés et depuis quand, pour la veille automatique (§17). */
+  /** Comptes cachés et depuis quand, pour la veille automatique. */
   hiddenSince(id: string): number | null {
     return id === this.activeId ? null : this.runtimeOf(id).hiddenSince;
   }

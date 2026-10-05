@@ -1,4 +1,4 @@
-// Rapport de diagnostic en un clic (F3). Fichier texte dans Téléchargements, puis
+// Rapport de diagnostic en un clic. Fichier texte dans Téléchargements, puis
 // dossier affiché. Aucun envoi automatique ; caviardé (noms de comptes, dossier
 // personnel, proxy). En anglais : il est destiné à un ticket.
 

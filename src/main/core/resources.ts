@@ -1,4 +1,4 @@
-// Décisions du ResourceMonitor (§17) : veille automatique.
+// Décisions du ResourceMonitor : veille automatique.
 
 export interface AutoSleepInput {
   id: string;
@@ -39,7 +39,7 @@ export interface SleepSuggestionInput {
 }
 
 /**
- * §17 : quand l'application dépasse le seuil de mémoire, propose d'endormir le compte
+ * Quand l'application dépasse le seuil de mémoire, propose d'endormir le compte
  * caché depuis le plus longtemps (au moins 30 min), hors appel.
  */
 export function sleepSuggestion(totalMB: number | null, inputs: readonly SleepSuggestionInput[], now: number): SleepSuggestionInput | null {

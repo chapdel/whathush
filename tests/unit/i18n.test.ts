@@ -7,7 +7,7 @@ const texts = (message: string | { one: string; other: string }) => (typeof mess
 
 afterEach(() => setLocale("fr"));
 
-describe("catalogues (F12)", () => {
+describe("catalogues", () => {
   it("ont les mêmes clés en français et en anglais (doublé d'un test d'exécution)", () => {
     expect(Object.keys(catalogs.en).sort()).toEqual(Object.keys(catalogs.fr).sort());
   });

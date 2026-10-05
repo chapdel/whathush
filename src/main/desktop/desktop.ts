@@ -1,4 +1,4 @@
-// Intégration bureau Linux (§21, §25) : détection du tray, lancement au démarrage,
+// Intégration bureau Linux : détection du tray, lancement au démarrage,
 // gestionnaire de liens whatsapp://, menu contextuel des vues.
 
 import { app, clipboard, Menu, type ContextMenuParams, type MenuItemConstructorOptions, type WebContents } from "electron";
@@ -17,7 +17,7 @@ function run(command: string, args: string[], timeoutMs = 3000): Promise<{ ok: b
 }
 
 /**
- * §21 : GNOME sans l'extension AppIndicator n'a pas de tray. On vérifie la présence
+ * GNOME sans l'extension AppIndicator n'a pas de tray. On vérifie la présence
  * d'un StatusNotifierWatcher sur le bus de session.
  */
 export async function isTrayAvailable(log: Logger): Promise<boolean> {
@@ -61,7 +61,7 @@ function launchArgs(): string[] {
 }
 
 /**
- * §25 : app.setLoginItemSettings ne fonctionne pas sous Linux. Hors Flatpak, un
+ * app.setLoginItemSettings ne fonctionne pas sous Linux. Hors Flatpak, un
  * fichier .desktop dans ~/.config/autostart ; sous Flatpak, le portail Background.
  */
 export async function setLaunchAtLogin(enabled: boolean, log: Logger): Promise<boolean> {
@@ -118,7 +118,7 @@ async function applyLaunchAtLogin(enabled: boolean, log: Logger): Promise<boolea
 }
 
 /**
- * §23 : gestionnaire des liens whatsapp://, en option (désactivé par défaut).
+ * Gestionnaire des liens whatsapp://, en option (désactivé par défaut).
  * Les entrées de bureau des paquets déclarent le type ; l'option en fait le choix
  * par défaut. L'AppImage n'installe aucune entrée : on en écrit une pour l'utilisateur.
  */
@@ -178,7 +178,7 @@ export interface ContextMenuTarget {
 
 type ContextParams = Pick<ContextMenuParams, "misspelledWord" | "dictionarySuggestions" | "isEditable" | "editFlags" | "selectionText" | "mediaType" | "srcURL" | "linkURL" | "x" | "y">;
 
-/** §24, F13 : modèle du menu contextuel d'une vue WhatsApp. */
+/** Modèle du menu contextuel d'une vue WhatsApp. */
 export function contextMenuTemplate(params: ContextParams, target: ContextMenuTarget, options: { devTools: boolean; openLink(url: string): void }): MenuItemConstructorOptions[] {
   const items: MenuItemConstructorOptions[] = [];
 
@@ -198,7 +198,7 @@ export function contextMenuTemplate(params: ContextParams, target: ContextMenuTa
       { role: "cut", label: t("context.cut"), enabled: params.editFlags.canCut },
       { role: "copy", label: t("context.copy"), enabled: params.editFlags.canCopy },
       { role: "paste", label: t("context.paste"), enabled: params.editFlags.canPaste },
-      // F13 : sans la mise en forme de la source (Ctrl+Maj+V, géré par Chromium).
+      // Sans la mise en forme de la source (Ctrl+Maj+V, géré par Chromium).
       { label: t("context.pastePlain"), accelerator: "CommandOrControl+Shift+V", enabled: params.editFlags.canPaste, click: () => target.pasteAndMatchStyle() },
       { role: "selectAll", label: t("context.selectAll") }
     );
@@ -229,7 +229,7 @@ export function contextMenuTemplate(params: ContextParams, target: ContextMenuTa
   return items;
 }
 
-/** §24 : menu contextuel des vues WhatsApp (Electron n'en fournit aucun). */
+/** Menu contextuel des vues WhatsApp (Electron n'en fournit aucun). */
 export function attachContextMenu(webContents: WebContents, options: { devTools: boolean; openLink(url: string): void }): void {
   const target: ContextMenuTarget = {
     replaceMisspelling: (word) => webContents.replaceMisspelling(word),

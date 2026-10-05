@@ -1,4 +1,4 @@
-// Fuseau horaire du système, relu à chaque calcul de politique (§13) : le moteur
+// Fuseau horaire du système, relu à chaque calcul de politique : le moteur
 // JavaScript garde le fuseau du lancement, un voyage ou un changement de réglage
 // ne serait sinon pris en compte qu'au redémarrage.
 

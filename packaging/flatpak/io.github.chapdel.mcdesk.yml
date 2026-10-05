@@ -1,6 +1,6 @@
-# Manifeste Flatpak (§41). Construit à partir de l'archive tar.gz d'electron-builder.
+# Manifeste Flatpak. Construit à partir de l'archive tar.gz d'electron-builder.
 # Local : sources « path » ci-dessous. Flathub : remplacer par l'URL de la release
-# publiée et sa somme sha256 (les règles de Flathub sur les marques s'appliquent, §38).
+# publiée et sa somme sha256 (les règles de Flathub sur les marques s'appliquent).
 
 app-id: io.github.chapdel.mcdesk
 runtime: org.freedesktop.Platform
@@ -21,18 +21,18 @@ finish-args:
   # Caméra des appels vidéo : pas encore de portail caméra utilisable par Electron.
   - --device=all
   - --talk-name=org.freedesktop.Notifications
-  # Tray (§21) : StatusNotifierItem.
+  # Tray : StatusNotifierItem.
   - --talk-name=org.kde.StatusNotifierWatcher
-  # Verrouillage avec la session (F6) : économiseur d'écran et logind, en écoute seulement.
+  # Verrouillage avec la session : économiseur d'écran et logind, en écoute seulement.
   - --talk-name=org.freedesktop.ScreenSaver
   - --talk-name=org.gnome.ScreenSaver
   - --system-talk-name=org.freedesktop.login1
-  # Identifiants de proxy chiffrés (F9) : trousseau du système via safeStorage.
+  # Identifiants de proxy chiffrés : trousseau du système via safeStorage.
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.kde.kwalletd6
   - --talk-name=org.kde.kwalletd5
   - --filesystem=xdg-download
-  # Wayland natif avec saisie IME (§25).
+  # Wayland natif avec saisie IME.
   - --env=ELECTRON_OZONE_PLATFORM_HINT=auto
 
 modules:

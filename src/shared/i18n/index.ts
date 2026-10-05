@@ -1,4 +1,4 @@
-// Traduction de l'interface (F12). Catalogue typé, sans dépendance : le français est
+// Traduction de l'interface. Catalogue typé, sans dépendance : le français est
 // la référence, chaque autre langue a exactement les mêmes clés (vérifié par
 // TypeScript). Le processus principal et l'interface lisent le même catalogue ;
 // WhatsApp Web garde la langue de ses propres réglages.

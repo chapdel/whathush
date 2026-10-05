@@ -336,7 +336,7 @@ export const en: Catalog = {
   "about.data": "Data",
   "about.logs": "Logs",
   "about.openLogs": "Open the logs folder",
-  // --- Shortcuts and zoom (F1) ------------------------------------------------------------
+  // --- Shortcuts and zoom -----------------------------------------------------------------
   "shortcut.switchAccount": "Show account 1 to 9",
   "shortcut.nextAccount": "Next account",
   "shortcut.previousAccount": "Previous account",
@@ -364,7 +364,7 @@ export const en: Catalog = {
   "appearance.whatsappTheme": "For WhatsApp to follow this theme: in WhatsApp, Settings → Chats → Theme → “System default”.",
   "notice.themeHint": "“{label}” is connected. For WhatsApp to follow the app’s theme: in WhatsApp, Settings → Chats → Theme → “System default”.",
 
-  // --- Media playback (F14) -----------------------------------------------------------------
+  // --- Media playback -----------------------------------------------------------------------
   "media.voiceMessage": "Voice message",
   "media.video": "Video",
   "media.nowPlaying": "Now playing — {label}",
@@ -378,7 +378,7 @@ export const en: Catalog = {
   "general.exclusivePlayback": "One playback at a time",
   "general.exclusivePlaybackDetail": "Starting a voice message pauses the one playing in other accounts.",
 
-  // --- Downloads (F2) -------------------------------------------------------------------------
+  // --- Downloads ------------------------------------------------------------------------------
   "section.downloads": "Downloads",
   "downloads.intro": "Files received in WhatsApp and saved on this computer.",
   "downloads.empty": "No downloads yet.",
@@ -401,7 +401,7 @@ export const en: Catalog = {
   "downloads.active": { one: "{count} download in progress", other: "{count} downloads in progress" },
   "downloads.meta": "{account} · {size} · {date}",
 
-  // --- Diagnostics (F3) ---------------------------------------------------------------------------
+  // --- Diagnostics --------------------------------------------------------------------------------
   "about.report": "Create a diagnostic report",
   "about.reportDetail": "A text file with no message content or account names, for you to attach to a report yourself. Nothing is sent.",
   "about.reportIssue": "Report a problem",
@@ -410,10 +410,10 @@ export const en: Catalog = {
   "menu.report": "Create a diagnostic report",
   "report.issueTitle": "Problem: ",
 
-  // --- Clipboard (F13) ------------------------------------------------------------------------------
+  // --- Clipboard ------------------------------------------------------------------------------------
   "context.pastePlain": "Paste as plain text",
 
-  // --- Lock (F6) -----------------------------------------------------------------------------------
+  // --- Lock ----------------------------------------------------------------------------------------
   "section.security": "Security",
   "security.intro": "Interface lock and on-screen privacy.",
   "lock.section": "Lock",
@@ -466,7 +466,7 @@ export const en: Catalog = {
   "menu.lock": "Lock",
   "menu.unlock": "Unlock",
 
-  // --- Privacy veil (F7) -------------------------------------------------------------------------
+  // --- Privacy veil ------------------------------------------------------------------------------
   "veil.toggle": "Veil chats",
   "veil.untoggle": "Unveil chats",
   "security.veil": "On-screen privacy",
@@ -479,7 +479,7 @@ export const en: Catalog = {
     "Messages, media and previews stay blurred until you hover over them. Depends on WhatsApp Web’s structure: turned off automatically if it is no longer recognized.",
   "notice.blurUnavailable": "Message blur unavailable on “{label}”: the WhatsApp page has changed. Veiling the whole chat is still available.",
 
-  // --- Permissions (F8) ---------------------------------------------------------------------------
+  // --- Permissions --------------------------------------------------------------------------------
   "account.permissions": "Permissions",
   "account.permissionsDetail": "Notifications and clipboard are still handled by the app.",
   "permission.microphone": "Microphone",
@@ -500,7 +500,7 @@ export const en: Catalog = {
   "dialog.permissionOnce": "Allow this time",
   "dialog.permissionAlways": "Always for this account",
 
-  // --- Proxy (F9) ---------------------------------------------------------------------------------
+  // --- Proxy --------------------------------------------------------------------------------------
   "section.network": "Network",
   "network.intro": "Proxy used to reach WhatsApp. Credentials are encrypted with the system keyring.",
   "proxy.title": "Proxy",

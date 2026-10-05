@@ -1,5 +1,5 @@
 // Preload de la coque (fenêtre principale et paramètres) : API typée et minimale,
-// aucun accès direct à ipcRenderer depuis l'UI (§26).
+// aucun accès direct à ipcRenderer depuis l'UI.
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import { CHANNELS } from "../shared/channels";

@@ -1,4 +1,4 @@
-// Relais SOCKS5 local (F9). Chromium ne sait pas s'authentifier auprès d'un proxy
+// Relais SOCKS5 local. Chromium ne sait pas s'authentifier auprès d'un proxy
 // SOCKS5 : il parle à ce relais sans authentification, sur 127.0.0.1 et un port
 // aléatoire ; le relais s'authentifie (RFC 1929) auprès du proxy amont et transmet.
 // Seuls les clients du même utilisateur système sont acceptés (un processus du même

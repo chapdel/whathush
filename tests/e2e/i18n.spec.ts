@@ -23,7 +23,7 @@ function frenchLeftovers(text: string): string[] {
   return text.split("\n").filter((line) => markers.some((marker) => marker.test(line)));
 }
 
-test("langue (F12) : interface entièrement en anglais, puis passage au français sans redémarrer", async () => {
+test("langue : interface entièrement en anglais, puis passage au français sans redémarrer", async () => {
   const h = await launch({ systemLanguage: "en" });
   const { app, shell } = h;
   try {
@@ -69,7 +69,7 @@ test("langue (F12) : interface entièrement en anglais, puis passage au françai
   }
 });
 
-test("langue (F12) : une installation neuve suit la langue du système, le français par défaut des tests", async () => {
+test("langue : une installation neuve suit la langue du système, le français par défaut des tests", async () => {
   const h = await launch();
   try {
     await expect(h.shell.getByRole("heading", { name: "Connecter WhatsApp" })).toBeVisible();
@@ -97,7 +97,7 @@ test("langue (F12) : une installation neuve suit la langue du système, le fran�
   }
 });
 
-test("correcteur (F5) : dictionnaire français intégré chargé sans aucun téléchargement", async () => {
+test("correcteur : dictionnaire français intégré chargé sans aucun téléchargement", async () => {
   const h = await launch();
   try {
     const id = await addAccountViaUi(h, "Personnel");

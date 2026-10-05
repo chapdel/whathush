@@ -1,6 +1,6 @@
-// Les fichiers de configuration de l'application (§6) et leurs valeurs par défaut.
+// Les fichiers de configuration de l'application et leurs valeurs par défaut.
 // Les schémas sont stricts : un nouveau réglage passe par une nouvelle version et
-// une migration qui remplit sa valeur par défaut (plan complémentaire, §2.1).
+// une migration qui remplit sa valeur par défaut.
 
 import {
   AccountsFileSchema,
@@ -66,7 +66,7 @@ export function defaultPreferences(): Preferences {
     onboardingDone: false,
     language: "system",
     interfaceScale: 100,
-    // Dictionnaires embarqués (F5) : aucun téléchargement, le correcteur suit le système.
+    // Dictionnaires embarqués : aucun téléchargement, le correcteur suit le système.
     spellcheckMode: "system",
     downloadsHistoryDays: 30,
     privacyVeil: { onBlur: false, onScreenShare: false, blurMessages: false },

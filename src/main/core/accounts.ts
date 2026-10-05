@@ -1,4 +1,4 @@
-// Opérations pures sur la liste des comptes (§6 à §8). Chaque fonction renvoie un
+// Opérations pures sur la liste des comptes. Chaque fonction renvoie un
 // nouveau fichier ; l'écriture sur disque est l'affaire du Store.
 
 import { LABEL_MAX_LENGTH, leastUsedAccountColor, MAX_ACCOUNTS, partitionFor } from "../../shared/constants";
@@ -14,7 +14,7 @@ export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   badgeWhileSnoozed: true
 };
 
-/** F8 : appels permis, localisation refusée, partage d'écran toujours demandé. */
+/** Appels permis, localisation refusée, partage d'écran toujours demandé. */
 export const DEFAULT_PERMISSIONS: AccountPermissions = {
   microphone: "allow",
   camera: "allow",
@@ -62,7 +62,7 @@ export function addAccount(
   return { file: { ...file, accounts: [...file.accounts, account] }, account };
 }
 
-/** Retire le compte et programme la suppression de sa partition au prochain démarrage (§8). */
+/** Retire le compte et programme la suppression de sa partition au prochain démarrage. */
 export function removeAccount(file: AccountsFile, id: string): AccountsFile {
   if (!file.accounts.some((account) => account.id === id)) return file;
   const accounts = file.accounts.filter((account) => account.id !== id).map((account, order) => ({ ...account, order }));
@@ -93,7 +93,7 @@ export function updateAccount(
   return { ...file, accounts: file.accounts.map((account) => (account.id === id ? update(account) : account)) };
 }
 
-/** Comptes par ordre d'affichage : le n-ième répond à Ctrl+n (§9). */
+/** Comptes par ordre d'affichage : le n-ième répond à Ctrl+n. */
 export function accountsInOrder(file: AccountsFile): AccountConfig[] {
   return [...file.accounts].sort((a, b) => a.order - b.order);
 }

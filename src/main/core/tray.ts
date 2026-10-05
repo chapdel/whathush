@@ -1,4 +1,4 @@
-// Icône du tray selon le total de non-lus (F4). Les images tray-1 … tray-9plus sont
+// Icône du tray selon le total de non-lus. Les images tray-1 … tray-9plus sont
 // générées par scripts/icons.mjs (1x et @2x, choisies par Electron selon l'écran).
 
 import type { TrayCountStyle } from "../../shared/schemas";

@@ -43,7 +43,7 @@ const cases: Array<[string, string, "window-open" | "navigation", LinkDecision]>
   ["chaîne vide", "   ", "window-open", { action: "block", reason: "invalid-url" }]
 ];
 
-describe("classifyLink (§23)", () => {
+describe("classifyLink", () => {
   it.each(cases)("%s", (_name, url, context, expected) => {
     expect(classifyLink(url, context)).toEqual(expected);
   });

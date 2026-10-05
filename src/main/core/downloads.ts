@@ -1,5 +1,5 @@
-// Noms de fichiers des téléchargements (§22) : jamais de chemin, jamais d'écrasement.
-// Historique des téléchargements (F2) : rétention et état « introuvable ».
+// Noms de fichiers des téléchargements : jamais de chemin, jamais d'écrasement.
+// Historique des téléchargements : rétention et état « introuvable ».
 
 import type { DownloadRecord } from "../../shared/schemas";
 

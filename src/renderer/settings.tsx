@@ -1,5 +1,5 @@
-// Fenêtre des paramètres (§26, §27, §30, §31) : fenêtre séparée, jamais d'overlay
-// au-dessus des vues WhatsApp (§29).
+// Fenêtre des paramètres : fenêtre séparée, jamais d'overlay
+// au-dessus des vues WhatsApp.
 
 import { StrictMode, useEffect, useState, useId, cloneElement, isValidElement, type ReactNode, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -226,7 +226,7 @@ function FilesSection({ state }: { state: SettingsState }) {
 
 // --- Comptes ---------------------------------------------------------------------------
 
-// --- Proxy (F9) ---------------------------------------------------------------------------
+// --- Proxy --------------------------------------------------------------------------------
 
 const PROXY_HOST = /^(\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?)$/;
 
@@ -498,7 +498,7 @@ function AccountEditor({ account, state }: { account: AccountConfig; state: Sett
   );
 }
 
-/** §31 : l'ordre des comptes est aussi celui des raccourcis Ctrl+1…9. */
+/** L'ordre des comptes est aussi celui des raccourcis Ctrl+1…9. */
 function moveAccount(state: SettingsState, id: string, step: number): void {
   const ids = state.accounts.map((account) => account.id);
   const index = ids.indexOf(id);
@@ -796,7 +796,7 @@ function FocusSection({ state }: { state: SettingsState }) {
   );
 }
 
-// --- Téléchargements (F2) -------------------------------------------------------------------
+// --- Téléchargements ------------------------------------------------------------------------
 
 function downloadStatus(entry: DownloadEntry): { text: string; warn: boolean } {
   if (entry.missing) return { text: t("downloads.missing"), warn: true };
@@ -858,7 +858,7 @@ function DownloadsSection({ state }: { state: SettingsState }) {
   );
 }
 
-// --- Sécurité (F6, F7) ---------------------------------------------------------------------
+// --- Sécurité ------------------------------------------------------------------------------
 
 function LockCodeForm({ enabled, lastResult }: { enabled: boolean; lastResult: SettingsState["security"]["lastCodeResult"] }) {
   const ids = { hint: useId(), mismatch: useId(), current: useId() };
