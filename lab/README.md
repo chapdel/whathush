@@ -1,119 +1,132 @@
-# Feasibility Lab — phase 0
+# Feasibility Lab
 
-Prototype **jetable** pour dérouler la matrice du §40 du plan (`../plan-client-whatsapp-linux.md`) avant d’écrire la vraie application. Il n’a pas d’UI soignée : une barre latérale, les vues WhatsApp, et un journal en bas.
+A **throwaway** prototype used to run the feasibility tests below before writing the real application. It has no polished UI: a sidebar, the WhatsApp views, and a log at the bottom.
 
-Ce que le lab met déjà en œuvre (repris du plan) :
+What the lab already implements:
 
-| Mécanisme | Plan | Où regarder |
-|---|---|---|
-| Une partition `persist:wa-<uuid>` par compte, durcie par une seule fabrique | §4 | `sessionFor()` dans `src/main.ts` |
-| User-Agent Chrome sans « Electron » | §5 | événement `page-env` |
-| Interception de `window.Notification` + clic → bon compte | §10 | `src/preload-whatsapp.ts`, événements `notification`, `notification-click` |
-| Compteur de non-lus via le titre | §11 | événement `unread` |
-| Snooze simple (tout couper) | §12 | bouton Snooze, événement `notification-dropped-snooze` |
-| Visibilité des comptes cachés (accusés de lecture) | §9 | événement `page-visibility` (⚠ si une page cachée se croit visible) |
-| Veille / réveil, RAM par compte | §16, §17 | boutons, `logs/metrics-*.csv` |
-| Reprise après crash avec backoff | §32 | bouton « Simuler crash », événement `render-process-gone` |
-| Liste blanche des permissions, refus journalisés | §26 | événements `permission-request`, `permission-check` |
-| Partage d’écran via `desktopCapturer` / portail | §20 | événements `display-media-*` |
-| Liens externes filtrés (http, https, mailto) | §23 | événements `open-external`, `blocked-url` |
-| Détection micro / caméra / partage (wrapper `getUserMedia`) | §19 | événement `media`, icônes 🎤 📷 🖥 |
+| Mechanism | Where to look |
+|---|---|
+| One `persist:wa-<uuid>` partition per account, hardened by a single factory | `sessionFor()` in `src/main.ts` |
+| Chrome User-Agent without "Electron" | `page-env` event |
+| `window.Notification` interception + click → right account | `src/preload-whatsapp.ts`, `notification` and `notification-click` events |
+| Unread counter from the page title | `unread` event |
+| Simple Snooze (mute everything) | Snooze button, `notification-dropped-snooze` event |
+| Visibility of hidden accounts (read receipts) | `page-visibility` event (⚠ if a hidden page believes it is visible) |
+| Sleep / wake, memory per account | buttons, `logs/metrics-*.csv` |
+| Crash recovery with backoff | "Simulate crash" button, `render-process-gone` event |
+| Permission allowlist, refusals logged | `permission-request` and `permission-check` events |
+| Screen sharing through `desktopCapturer` / the portal | `display-media-*` events |
+| Filtered external links (http, https, mailto) | `open-external` and `blocked-url` events |
+| Microphone / camera / sharing detection (`getUserMedia` wrapper) | `media` event, 🎤 📷 🖥 icons |
 
-## Installation
+## Install
 
 ```bash
 cd lab
 npm install
 ```
 
-Node 22 ou plus récent.
+Requires Node 22 or later.
 
-## Commandes
+## Commands
 
-| Commande | Usage |
+| Command | Use |
 |---|---|
-| `npm start` | vrais comptes WhatsApp, plateforme par défaut |
-| `npm run start:wayland` | Wayland natif + IME (`--enable-wayland-ime`) |
+| `npm start` | real WhatsApp accounts, default platform |
+| `npm run start:wayland` | native Wayland + IME (`--enable-wayland-ime`) |
 | `npm run start:x11` | X11 / XWayland |
-| `npm run start:fake` | fausse page WhatsApp locale (pas de vrai compte) |
-| `npm run smoke` | test automatique contre la fausse page, sans fenêtre |
-| `npm run smoke:visible` | idem, avec la fenêtre (vraie session graphique) |
-| `npm run probe` | charge le vrai web.whatsapp.com **sans compte** dans un dossier jetable : User-Agent, service worker, permissions demandées, capture d’écran (`LAB_PROBE_OUT=<dossier>`) |
-| `LAB_UA=electron npm run probe` | idem avec le User-Agent par défaut d’Electron, pour comparaison |
+| `npm run start:fake` | local fake WhatsApp page (no real account) |
+| `npm run smoke` | automated test against the fake page, headless |
+| `npm run smoke:visible` | same, with the window shown (real graphical session) |
+| `npm run probe` | loads the real web.whatsapp.com **without an account** in a throwaway folder: User-Agent, service worker, requested permissions, screenshot (`LAB_PROBE_OUT=<folder>`) |
+| `LAB_UA=electron npm run probe` | same with Electron's default User-Agent, for comparison |
 
-Variables d’environnement :
+Environment variables:
 
-| Variable | Effet |
+| Variable | Effect |
 |---|---|
-| `LAB_PERMISSIVE=1` | accorde toutes les permissions (toujours journalisées) : utile si WhatsApp casse à cause d’un refus |
-| `LAB_LOG_CONTENT=1` | journalise le titre et le texte des notifications. **Uniquement avec des comptes de test** |
-| `LAB_TARGET_URL=…` | charge une autre URL que `https://web.whatsapp.com/` |
+| `LAB_PERMISSIVE=1` | grants every permission (still logged): useful if WhatsApp breaks because of a refusal |
+| `LAB_LOG_CONTENT=1` | logs notification titles and bodies. **Test accounts only** |
+| `LAB_TARGET_URL=…` | loads another URL instead of `https://web.whatsapp.com/` |
 
-Raccourcis : `Ctrl+1…9` et `Ctrl+Tab` pour changer de compte, `F12` pour les DevTools du compte affiché, clic droit → « Inspecter l’élément ».
+Shortcuts: `Ctrl+1…9` and `Ctrl+Tab` switch accounts, `F12` opens the DevTools of the displayed account, right click → "Inspect element".
 
-## Données et journaux
+## Data and logs
 
-| Mode | Dossier |
+| Mode | Folder |
 |---|---|
-| vrais comptes | `~/.config/feasibility-lab/` |
-| fausse page | `~/.config/feasibility-lab-fake/` |
-| smoke test | dossier temporaire, supprimé si tout passe |
+| real accounts | `~/.config/feasibility-lab/` |
+| fake page | `~/.config/feasibility-lab-fake/` |
+| smoke test | temporary folder, deleted if everything passes |
 
-Dans chaque dossier, `logs/` contient, pour chaque lancement :
+In each folder, `logs/` holds, for every launch:
 
-- `lab-<date>.jsonl` : un événement JSON par ligne ;
-- `metrics-<date>.csv` : RAM et CPU par compte toutes les 5 s, plus le total de l’application.
+- `lab-<date>.jsonl`: one JSON event per line;
+- `metrics-<date>.csv`: memory and CPU per account every 5 s, plus the application total.
 
-Exemples :
+Examples:
 
 ```bash
 grep '"event":"notification"' ~/.config/feasibility-lab/logs/lab-*.jsonl
 grep '"level":"warn"' ~/.config/feasibility-lab/logs/lab-*.jsonl
 ```
 
-Le dossier `~/.config/feasibility-lab/Partitions/` contient les sessions WhatsApp : quiconque le copie peut réutiliser les comptes. À la fin du lab, supprimer les comptes dans le lab **et** les appareils liés depuis les téléphones (WhatsApp → Appareils connectés), puis supprimer le dossier.
+The `~/.config/feasibility-lab/Partitions/` folder holds the WhatsApp sessions: anyone who copies it can reuse the accounts. When the lab is over, remove the accounts in the lab **and** the linked devices from the phones (WhatsApp → Linked devices), then delete the folder.
 
-## Protocole de test
+## Test protocol
 
-Reporter chaque résultat dans `RESULTS.md`. Chaque compte ajouté occupe un « appareil lié » sur le téléphone (4 maximum par numéro).
+Record each result with its date and environment (desktop, Wayland or X11). Each account added uses one "linked device" on the phone (4 at most per number). The tests are ordered: an early failure can rule out a whole part of the product.
 
-| # | Test | Comment faire | Quoi regarder |
+| # | Test | How | What to look at |
 |---|---|---|---|
-| 1 | Chargement | `npm start`, ajouter un compte, scanner le QR | pas d’écran « navigateur non supporté » ; `page-env` sans `problems` |
-| 2 | Appel audio | d’abord dans Chrome sur web.whatsapp.com, puis dans le lab : appeler et se faire appeler depuis un autre téléphone | `permission-request` media, `media start/stop`, `window-open-allowed` (popup d’appel ?) |
-| 3 | Interception | recevoir un message sur un compte **caché** | notification système préfixée par le nom du compte. Une notification **sans préfixe** a contourné le proxy : chercher `sw-notification` |
-| 4 | Clic | cliquer la notification | le lab affiche le bon compte et WhatsApp ouvre la conversation |
-| 5 | Accusés de lecture | compte B : ouvrir la conversation avec X ; passer sur A ; X envoie un message | sur le téléphone de X, pas de coches bleues tant qu’on ne revient pas sur B ; `page-visibility` de B = `hidden` |
-| 6 | Multi-partitions | 2, 3 puis 5 comptes (5 numéros) | chaque compte reste connecté, aucun ne déconnecte un autre |
-| 7 | Redémarrage | fermer puis relancer le lab | aucun QR demandé |
-| 8 | Veille / réveil | « Mettre en veille », attendre 10 s, « Réveiller » | baisse de RAM dans `metrics-*.csv` ; aucun QR au réveil |
-| 9 | Latence en arrière-plan | laisser un compte caché 1 h, puis 8 h ; envoyer un message depuis un autre téléphone | écart entre l’envoi et l’horodatage de `notification` dans le journal (< 5 s) |
-| 10 | Bascule | `Ctrl+1` / `Ctrl+2` répétés | ressenti (pas de flash) ; `switch` donne le temps côté main seulement |
-| 11 | RAM | 1, 3, 5 comptes, 10 min de stabilisation chacun | `metrics-*.csv` |
-| 12 | Message vocal | enregistrer un vocal | `permission-request` media audio accordé, 🎤 pendant l’enregistrement |
-| 13 | Coller / glisser | copier une image puis `Ctrl+V` dans une conversation ; glisser un fichier | `permission-check` refusés (`clipboard-read` ?) |
-| 14 | Vidéo | appel vidéo | 📷, image dans les deux sens |
-| 15 | Partage d’écran | pendant un appel vidéo, partager l’écran ; avec `start:wayland` puis `start:x11` | `display-media-request` / `display-media-sources` ; nombre de sélecteurs affichés |
-| 16 | Reconnaissance des appels | appel entrant sur un compte caché, avec `LAB_LOG_CONTENT=1` sur un compte de test | texte et `tag` de la notification d’appel ; `audio` audible=true prolongé |
-| 17 | Déconnexion à distance | depuis le téléphone : Appareils connectés → déconnecter le lab | ce que montre la vue ; aucun événement générique attendu (confirme le besoin de l’adaptateur, §35) |
-| 18 | Suspend / resume | mettre le PC en veille 10 min ou plus | `system-suspend`, `system-resume`, `post-resume-check` 30 s après ; message reçu après le réveil |
-| 19 | IME / emoji | `start:wayland` puis `start` ; saisie avec fcitx5 / ibus, sélecteur d’emoji du bureau | caractères saisis correctement |
-| 20 | Endurance 72 h | laisser tourner avec 3 comptes | courbe de RAM dans `metrics-*.csv` |
-| 21 | GNOME sans AppIndicator | — | hors lab : le lab n’a pas de tray, à tester en phase 3 |
+| 1 | Loading | `npm start`, add an account, scan the QR code | no "unsupported browser" screen; `page-env` without `problems` |
+| 2 | Audio call | first in Chrome on web.whatsapp.com, then in the lab: call and be called from another phone | `permission-request` media, `media start/stop`, `window-open-allowed` (call popup?) |
+| 3 | Interception | receive a message on a **hidden** account | system notification prefixed with the account name. A notification **without a prefix** bypassed the interception: look for `sw-notification` |
+| 4 | Click | click the notification | the lab shows the right account and WhatsApp opens the chat |
+| 5 | Read receipts | account B: open the chat with X; switch to A; X sends a message | on X's phone, no blue ticks until you return to B; B's `page-visibility` = `hidden` |
+| 6 | Multiple partitions | 2, 3, then 5 accounts (5 numbers) | every account stays signed in, none signs out another |
+| 7 | Restart | close, then relaunch the lab | no QR code requested |
+| 8 | Sleep / wake | "Sleep", wait 10 s, "Wake" | memory drop in `metrics-*.csv`; no QR code on wake |
+| 9 | Background latency | leave an account hidden for 1 h, then 8 h; send a message from another phone | gap between sending and the `notification` timestamp in the log (< 5 s) |
+| 10 | Switching | repeated `Ctrl+1` / `Ctrl+2` | how it feels (no flash); `switch` only gives the main-process time |
+| 11 | Memory | 1, 3, 5 accounts, 10 min to settle each | `metrics-*.csv` |
+| 12 | Voice message | record a voice message | `permission-request` media audio granted, 🎤 while recording |
+| 13 | Paste / drag | copy an image, then `Ctrl+V` in a chat; drag a file | refused `permission-check` events (`clipboard-read`?) |
+| 14 | Video | video call | 📷, picture in both directions |
+| 15 | Screen sharing | during a video call, share the screen; with `start:wayland`, then `start:x11` | `display-media-request` / `display-media-sources`; number of pickers shown |
+| 16 | Call recognition | incoming call on a hidden account, with `LAB_LOG_CONTENT=1` on a test account | text and `tag` of the call notification; `audio` audible=true sustained |
+| 17 | Remote sign-out | from the phone: Linked devices → sign out the lab | what the view shows; no generic event expected (confirms the need for the adapter) |
+| 18 | Suspend / resume | put the PC to sleep for 10 min or more | `system-suspend`, `system-resume`, `post-resume-check` 30 s later; message received after wake-up |
+| 19 | IME / emoji | `start:wayland`, then `start`; typing with fcitx5 / ibus, the desktop emoji picker | characters entered correctly |
+| 20 | 72 h endurance | leave it running with 3 accounts | memory curve in `metrics-*.csv` |
 
-Les tests propres à GNOME (et les variantes X11 natives) demandent une autre machine ou une VM : ce poste est sous KDE Plasma / Wayland.
+Tests 21 to 28 cover features of WhatHush itself: run them with the application (`npm start` at the repository root), not with the lab.
 
-## Constats de mise en place
+| # | Test | How | What to look at |
+|---|---|---|---|
+| 21 | GNOME without AppIndicator | start WhatHush on GNOME without the AppIndicator extension | correct fallback without a tray |
+| 22 | Notification photos | receive messages from contacts with a profile photo | actual icon format (`blob:`, `https://pps.whatsapp.net/…`, `data:`); photo shown. Fallback: notification without a photo |
+| 23 | Message blur | enable the per-message blur, open chats | `[data-pre-plain-text]` markers and chat list previews recognised; messages, media and previews blurred. Fallback: the option turns itself off (self-test) |
+| 24 | Now playing | play a voice message | message detected; player published on MPRIS on GNOME and KDE, with name and metadata. Fallback: in-app indicator only |
+| 25 | Lock with the session | lock the desktop session on GNOME and KDE; stay idle on Wayland | `LockedHint` / `ScreenSaver.ActiveChanged` received; idle time measured on Wayland. Fallback: the other triggers (start-up, hidden window, manual) |
+| 26 | Proxy | save proxy credentials, then call through the proxy | credentials encrypted by KWallet / GNOME Keyring; calls work behind the proxy. Fallback: credentials kept in memory, warning about calls |
+| 27 | Clipboard | paste a screenshot, copy an image to GIMP, primary selection; on Wayland, then X11 | everything works. Fallback: adjust the allowlist (`clipboard-read`) |
+| 28 | WhatsApp theme | set WhatsApp's theme to "System default" | where WhatsApp stores the setting. Fallback: the in-app hint only (already in place) |
 
-Sonde sur le vrai web.whatsapp.com, sans compte (2026-10-04) :
+GNOME-specific tests (and native X11 variants) need another machine or a VM if you are on KDE Plasma / Wayland.
 
-- **User-Agent d’Electron par défaut : refusé.** WhatsApp affiche « WhatsApp works with Google Chrome 100+ ». Avec le User-Agent du §5 (Chrome 152, sans « Electron ») : écran QR normal. Les Client Hints (`Not?A_Brand`, `Chromium`) ne mentionnent pas Electron dans les deux cas.
-- L’override de `window.Notification` est en place avant le moindre script WhatsApp (`readyState` = `loading`, 0 script).
-- WhatsApp enregistre un service worker (`https://web.whatsapp.com/sw.js`) qui contrôle la page dès le chargement.
-- Au chargement, WhatsApp demande `persistent-storage` (désormais accordée : elle protège la session contre l’éviction du stockage) et vérifie `background-sync` (refusée pour l’instant, à surveiller).
-- Electron 44 tourne en **Wayland natif par défaut** : il démarre sans `DISPLAY`, alors qu’en forçant X11 il échoue.
+## Setup findings
 
-Mécanique du lab :
+Probe of the real web.whatsapp.com, without an account (2026-10-04):
 
-- Smoke test contre la fausse page : 18/18 (User-Agent, Client Hints, override de `Notification` avant les scripts de la page, interception, non-lus, visibilité, clic, isolation du stockage, veille/réveil, reprise après crash, UI de la coque).
-- `webContents.forcefullyCrashRenderer()` n’est pas utilisable ici : le processus de rendu affiche « Crashing because hung » mais reste vivant (plus de 15 s observées) et `render-process-gone` n’arrive pas. Cause non vérifiée (probablement le traitement du vidage mémoire par le système). Le lab simule donc les crashs par `SIGKILL`. Conséquence pour le §32 : un vrai crash pourrait être détecté avec retard sur Fedora ; à surveiller.
+- **Electron's default User-Agent: refused.** WhatsApp shows "WhatsApp works with Google Chrome 100+". With a Chrome 152 User-Agent without "Electron": normal QR screen. The Client Hints (`Not?A_Brand`, `Chromium`) do not mention Electron in either case.
+- The `window.Notification` override is in place before any WhatsApp script runs (`readyState` = `loading`, 0 scripts).
+- WhatsApp registers a service worker (`https://web.whatsapp.com/sw.js`) that controls the page from the first load.
+- On load, WhatsApp requests `persistent-storage` (now granted: it protects the session from storage eviction) and checks `background-sync` (refused for now, to watch).
+- Electron 44 runs **natively on Wayland by default**: it starts without `DISPLAY`, whereas it fails when X11 is forced.
+- Test 1 (loading) is partly validated: without an account, the QR screen appears with the Chrome User-Agent. It still has to be confirmed once signed in.
+
+Lab mechanics:
+
+- Smoke test against the fake page: 18/18 (User-Agent, Client Hints, `Notification` override before the page's scripts, interception, unread counts, visibility, click, storage isolation, sleep/wake, crash recovery, shell UI).
+- `webContents.forcefullyCrashRenderer()` is not usable here: the renderer prints "Crashing because hung" but stays alive (more than 15 s observed) and `render-process-gone` never fires. Cause not verified (probably the system's handling of the crash dump). The lab therefore simulates crashes with `SIGKILL`. Consequence for crash recovery: a real crash might be detected late on Fedora; to watch.

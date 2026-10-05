@@ -1,155 +1,141 @@
 # WhatHush
 
-Client desktop Linux multi-comptes pour WhatsApp Web : plusieurs comptes isolés côte à côte, Snooze, Focus, horaires, veille profonde et intégration au bureau.
+A multi-account WhatsApp Web desktop client for Linux: several isolated accounts side by side, with Snooze, Focus, schedules, deep sleep and desktop integration.
 
-- Nom de code : **Whatsapp**. Nom public candidat : **WhatHush**, à valider par une revue de marque avant toute publication (plan §38).
-- Projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms. L’application affiche le WhatsApp Web officiel ; elle ne réimplémente aucun protocole.
-- Plan de référence : [`plan-client-whatsapp-linux.md`](plan-client-whatsapp-linux.md). Les numéros §N cités dans le code y renvoient.
+- WhatHush is an independent project, not affiliated with WhatsApp LLC or Meta Platforms. It displays the official WhatsApp Web and does not reimplement any protocol.
+- The interface is available in English and French, following the system language by default.
 
-## Fonctionnalités
+## Features
 
-| Fonction | Plan | Comment |
-|---|---|---|
-| Comptes multiples isolés | §4 | une partition Chromium `persist:wa-<uuid>` par compte, durcie par une seule fabrique |
-| Bascule instantanée | §9 | `Ctrl+1…9`, `Ctrl+Tab`, `Ctrl+Shift+Tab`, y compris quand WhatsApp a le focus ; ordre réglable par glisser-déposer |
-| Pas d’accusés de lecture parasites | §9 | seule la vue affichée est visible ; les autres sont `hidden` pour leur page |
-| Notifications par compte | §10 | `window.Notification` intercepté, nom du compte en préfixe, clic → bon compte et bonne conversation |
-| Non-lus et badge global | §11 | titre de la page, total dans la barre latérale, le tray et le lanceur |
-| Snooze | §12 | 30 min, 1 h, 4 h, demain matin, lundi, jusqu’à une date, jusqu’à réactivation ; son de la page coupé |
-| Horaires et Focus | §13 à §15 | priorités manuel > Focus > horaire ; changements d’heure et de fuseau gérés sans redémarrer |
-| Veille profonde | §16 | la vue est détruite, la session reste ; réveil sans QR code ; jamais pendant un appel |
-| Ressources | §17 | RAM par compte, veille automatique optionnelle, suggestion de mise en veille au-delà de 2 Go, démarrage échelonné |
-| Appels | §18, §19 | micro, caméra et partage d’écran détectés, appel signalé dans la barre latérale et le tray ; partage via le portail sous Wayland, avec choix de l’écran sous X11 |
-| Tray | §21 | menu complet ; détection de GNOME sans AppIndicator et repli |
-| Liens | §23 | navigateur système pour http/https/mailto, schémas dangereux bloqués, `wa.me` → choix du compte |
-| Téléchargements | §22 | dossier Téléchargements, jamais d’écrasement, jamais d’ouverture automatique |
-| Reprise après crash | §32 | recréation 1 s, 5 s, 30 s, puis arrêt et bouton « Recharger » |
-| Détection QR / déconnexion | §35 | adaptateur isolé, lecture seule, mode dégradé s’il ne répond pas |
+| Feature | How it works |
+|---|---|
+| Isolated accounts | one Chromium partition (`persist:wa-<uuid>`) per account, hardened by a single session factory |
+| Instant switching | `Ctrl+1…9`, `Ctrl+Tab`, `Ctrl+Shift+Tab`, even when WhatsApp has focus; order set by drag and drop |
+| No stray read receipts | only the displayed account is visible; every other page sees itself as `hidden` |
+| Per-account notifications | `window.Notification` is intercepted, prefixed with the account name, and a click opens the right account and chat; sender photos are fetched by the main process from `*.whatsapp.net` only |
+| Unread counts | read from the page title, totalled in the sidebar, the tray (number, dot or nothing) and the launcher badge |
+| Snooze | 30 min, 1 h, 4 h, tomorrow morning, Monday, until a date, until turned back on; the page's sound is muted, but a voice message started by the user keeps playing |
+| Schedules and Focus | priority is manual > Focus > schedule; daylight saving and time-zone changes apply without a restart |
+| Deep sleep | the view is destroyed and the session kept; waking needs no QR code; never during a call |
+| Resources | memory per account, optional automatic sleep, a suggestion to sleep accounts above 2 GB, staggered start-up |
+| Calls | microphone, camera and screen sharing are detected and shown in the sidebar and tray; screen sharing goes through the portal on Wayland, with a screen picker on X11 |
+| Tray | full menu; detects GNOME without AppIndicator and falls back |
+| Links | http, https and mailto open in the system browser, dangerous schemes are blocked, `wa.me` links ask which account to use |
+| Downloads | Downloads folder, never overwritten, never opened automatically; history with retention, open, show in folder, missing files flagged |
+| Clipboard | text and images, "Copy image", "Paste as plain text" (`Ctrl+Shift+V`) |
+| Now playing | voice messages are tracked through the standard media API, with Pause / Resume in the sidebar, the tray and MPRIS |
+| Zoom and shortcuts | zoom per account (`Ctrl+=`, `Ctrl+-`, `Ctrl+0`, `Ctrl`+wheel), interface scale, shortcut sheet (`Ctrl+/`); layout-aware, including AZERTY |
+| Offline spell checking | English and French dictionaries are bundled; other languages are downloaded from Google only when explicitly chosen |
+| Passcode lock | at start-up, when the window is hidden, after inactivity or with the session lock; growing delay after wrong codes; "Forgot code" signs out every account |
+| Privacy veil | `Ctrl+Shift+H`, on focus loss or during screen sharing; optional per-message blur (experimental) |
+| Per-account permissions | microphone, camera, location, screen sharing: allow, ask or deny |
+| Proxy | HTTP, HTTPS and SOCKS5, global or per account, with encrypted credentials; a local relay handles authenticated SOCKS5 |
+| Diagnostic report | a redacted file for the user to attach to a bug report; nothing is ever sent |
+| Crash recovery | the view is recreated after 1 s, 5 s and 30 s, then stops and offers a "Reload" button |
+| QR and sign-out detection | an isolated, read-only adapter, with a degraded mode if it stops responding |
 
-Ajoutées en 0.2.0 ([plan complémentaire](docs/plan-fonctionnalites-complementaires.md), F1 à F14) :
+## Install
 
-| Fonction | Plan | Comment |
-|---|---|---|
-| Français et anglais | F12 | langue du système par défaut, réglable ; catalogue typé ; entrée de bureau et AppStream traduites |
-| Presse-papiers | F13 | texte et images, « Copier l’image », « Coller comme texte brut » (Ctrl+Maj+V) |
-| « En cours de lecture » | F14 | message vocal suivi par l’API standard, Pause / Reprendre dans la barre latérale et le tray, MPRIS ; le Snooze ne coupe plus une lecture lancée par l’utilisateur |
-| Zoom et raccourcis | F1 | zoom par compte (Ctrl+ / Ctrl− / Ctrl+0, Ctrl+molette), taille de l’interface, feuille des raccourcis (Ctrl+/) |
-| Téléchargements | F2 | historique avec rétention (ou aucun), ouvrir, afficher dans le dossier, fichier introuvable signalé |
-| Rapport de diagnostic | F3 | fichier caviardé à joindre soi-même ; rien n’est envoyé |
-| Non-lus sur l’icône du tray | F4 | nombre (1 à 9, 9+), point ou rien |
-| Correcteur hors ligne | F5 | dictionnaires français et anglais embarqués ; autres langues téléchargées depuis Google seulement sur choix explicite |
-| Verrouillage par code | F6 | au démarrage, fenêtre masquée, inactivité, verrouillage de la session ; délai croissant ; « Code oublié » efface les sessions |
-| Voile de confidentialité | F7 | Ctrl+Maj+H, perte de focus, partage d’écran ; flou message par message en option expérimentale |
-| Autorisations par compte | F8 | micro, caméra, localisation, partage d’écran : autoriser, demander, refuser |
-| Proxy | F9 | HTTP, HTTPS, SOCKS5, global ou par compte, avec identifiants chiffrés ; relais local pour SOCKS5 authentifié |
-| Photos des notifications | F10 | téléchargées par le processus principal depuis `*.whatsapp.net` seulement |
-| Thème de WhatsApp | F11 | aide, une fois par compte, pour régler WhatsApp sur « Défaut du système » |
-
-## Installer
-
-Les paquets se construisent dans `release/` (voir « Paquets »).
+Packages are built into `release/` (see [Packages](#packages)).
 
 ```bash
 # AppImage
 chmod +x release/WhatHush-0.2.0-x86_64.AppImage && ./release/WhatHush-0.2.0-x86_64.AppImage
-# Debian / Ubuntu (installe aussi le profil AppArmor d’Ubuntu 24.04+)
+# Debian / Ubuntu (also installs the AppArmor profile required on Ubuntu 24.04+)
 sudo apt install ./release/whathush_0.2.0_amd64.deb
 # Fedora
 sudo dnf install ./release/whathush-0.2.0.x86_64.rpm
-# Flatpak (paquet local)
+# Flatpak (local bundle)
 flatpak install --user release/WhatHush-0.2.0.flatpak
 ```
 
-Au premier lancement, ajoutez un compte puis scannez le QR code depuis le téléphone (WhatsApp → Appareils connectés). Chaque compte occupe un appareil lié (4 au maximum par numéro).
+On first launch, add an account and scan the QR code from your phone (WhatsApp → Linked devices). Each account uses one linked device (at most 4 per phone number).
 
-## Développer
+## Develop
 
 ```bash
 npm install
-npm start            # construit puis lance l’application sur le vrai web.whatsapp.com
-npm run demo         # la lance sur une fausse page WhatsApp locale (sans compte)
+npm start            # build, then run against the real web.whatsapp.com
+npm run demo         # run against a local fake WhatsApp page (no account needed)
 ```
 
-Données : `~/.config/mcdesk/` (dossier en 0700 ; `~/.config/mcdesk-demo/` pour la démo). Journaux : `logs/app.log`, sans aucun contenu de message.
+Data lives in `~/.config/mcdesk/` (mode 0700; `~/.config/mcdesk-demo/` for the demo). Logs are in `logs/app.log` and never contain message content.
 
 ## Tests
 
-| Commande | Ce qu’elle vérifie |
+| Command | What it checks |
 |---|---|
-| `npm run typecheck` | types de tout le projet |
-| `npm test` | 201 tests unitaires : politique, expiration Snooze/Focus, fuseaux, machine à états, gestionnaire de comptes, liens, stockage et migrations v1 → v2, menus, IPC, protocole `app://`, autostart ; catalogues de langue, raccourcis, lecture des médias, historique, autorisations, verrou, rapport, proxy et relais SOCKS5 (contre un faux proxy amont), identifiants chiffrés, voile, rapport caviardé, menu contextuel, menus du tray, photos, correcteur |
-| `npm run test:e2e` | 47 tests de bout en bout (Playwright pilote Electron, sans fenêtre, contre la fausse page), dont clavier, dialogues, resize, thèmes et HiDPI, interface en anglais, presse-papiers, lecture, zoom, téléchargements, rapport, verrou, voile, autorisations, proxy HTTP et SOCKS5, photos ; captures dans `test-results/screens/` |
-| `npm run test:native` | la règle de visibilité du §9, mesurée sans Playwright (Playwright émule le focus des pages et fausserait le résultat), y compris pendant le verrouillage, et le Snooze d’un son lancé par une page cachée |
-| `npm run build && ./node_modules/.bin/playwright test --config playwright.native.config.ts` | fenêtres et tray sur le bureau courant, backends Wayland et X11 selon la session disponible ; utilise des comptes locaux de test |
-| `cd lab && npm run smoke` | le Feasibility Lab (phase 0) |
-| `npm run icons` | régénère les icônes du tray avec nombre (ImageMagick) |
+| `npm run typecheck` | types across the whole project |
+| `npm test` | 201 unit tests: policy, Snooze/Focus expiry, time zones, state machine, account manager, links, storage and v1 → v2 migrations, menus, IPC, the `app://` protocol, autostart, language catalogues, shortcuts, media playback, download history, permissions, lock, proxy and SOCKS5 relay (against a fake upstream proxy), encrypted credentials, veil, redacted report, context menu, tray menus, notification photos, spell checker |
+| `npm run test:e2e` | 47 end-to-end tests (Playwright drives Electron headless against the fake page): keyboard, dialogs, resizing, themes and HiDPI, English interface, clipboard, playback, zoom, downloads, report, lock, veil, permissions, HTTP and SOCKS5 proxies, notification photos; screenshots go to `test-results/screens/` |
+| `npm run test:native` | the visibility rule measured without Playwright (Playwright emulates page focus, which would skew the result), including while locked, and Snooze muting a sound started by a hidden page |
+| `npm run build && ./node_modules/.bin/playwright test --config playwright.native.config.ts` | windows and tray on the current desktop, Wayland and X11 backends depending on the session; uses local test accounts |
+| `cd lab && npm run smoke` | the [Feasibility Lab](lab/README.md) smoke test |
+| `npm run icons` | regenerates the numbered tray icons (ImageMagick) |
 
-L’[audit UI/UX](docs/ui-ux-audit.md) décrit les défauts observés, les corrections et les limites de validation. Le backend X11 lancé depuis KDE Wayland passe par XWayland ; les captures automatisées utilisent la fausse page WhatsApp.
+When launched from KDE Wayland, the X11 backend runs through XWayland. Automated screenshots use the fake WhatsApp page.
 
-## Paquets
+## Packages
 
 ```bash
-npm run build && npx electron-builder --linux AppImage tar.gz     # sur la machine
-# .deb et .rpm : fpm a besoin de libcrypt.so.1 (absente de Fedora 44) et rpmbuild,
-# d’où un conteneur :
+npm run build && npx electron-builder --linux AppImage tar.gz     # on the host
+# .deb and .rpm: fpm needs libcrypt.so.1 (missing from Fedora 44) and rpmbuild,
+# hence a container:
 podman run --rm --security-opt label=disable -v "$PWD":/work -w /work \
   registry.fedoraproject.org/fedora:44 bash -c \
   "dnf install -y nodejs rpm-build libxcrypt-compat && npx electron-builder --linux rpm deb --prepackaged release/linux-unpacked"
 # Flatpak
-# --disable-cache : sans lui, flatpak-builder peut réutiliser un ancien build en cache
+# --disable-cache: otherwise flatpak-builder may reuse an older cached build
 flatpak run org.flatpak.Builder --user --force-clean --disable-cache --state-dir=release/.flatpak-builder \
   --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.mcdesk.yml
 flatpak build-bundle release/flatpak-repo release/WhatHush-0.2.0.flatpak io.github.chapdel.mcdesk
 ```
 
-`whathush --self-test` démarre réellement l’application empaquetée (fuses actives), vérifie que l’interface s’affiche et imprime un bilan JSON, dont l’empreinte du build (`build` : commit, date). Comparer cette empreinte à `dist/build-info.json` garantit que le paquet contient le build attendu, et pas une version restée en cache.
+`whathush --self-test` actually starts the packaged application (with its fuses enabled), checks that the interface renders and prints a JSON summary, including the build fingerprint (`build`: commit and date). Comparing that fingerprint with `dist/build-info.json` proves the package contains the expected build rather than a stale cached one.
 
-| Format | Vérification faite |
+| Format | How it is verified |
 |---|---|
-| AppImage | auto-test avec rendu de l’interface |
-| `.deb` | installé dans Ubuntu 24.04 : dépendances, fichiers, entrée de bureau, profil AppArmor, auto-test avec rendu |
-| `.rpm` | installé dans Fedora 44 : dépendances, entrée de bureau valide, auto-test avec rendu |
-| AUR (`packaging/aur/PKGBUILD`) | `makepkg` (sommes vérifiées) puis `pacman -U` dans Arch Linux, auto-test avec rendu |
-| Flatpak | construit avec la base Electron 25.08 et zypak, installé, auto-test avec rendu dans le vrai bac à sable, désinstallé |
+| AppImage | self-test with interface rendering |
+| `.deb` | installed in Ubuntu 24.04: dependencies, files, desktop entry, AppArmor profile, self-test with rendering |
+| `.rpm` | installed in Fedora 44: dependencies, valid desktop entry, self-test with rendering |
+| AUR (`packaging/aur/PKGBUILD`) | `makepkg` (checksums verified), then `pacman -U` in Arch Linux, self-test with rendering |
+| Flatpak | built on the Electron 25.08 base app with zypak, installed, self-test with rendering inside the real sandbox, uninstalled |
 
-Le binaire empaqueté porte les fuses Electron du §26 (pas de `RunAsNode`, ni de `NODE_OPTIONS`, ni de `--inspect` ; chiffrement des cookies ; application chargée seulement depuis l’ASAR).
+The packaged binary has its Electron fuses set: no `RunAsNode`, no `NODE_OPTIONS`, no `--inspect`, cookie encryption on, and the app loads only from its ASAR archive.
 
 ## Architecture
 
 ```text
 src/
-  shared/              constantes, identité, schémas zod, contrat IPC, formats d’affichage
-  main/core/           logique pure, sans Electron : politique, fuseaux, états, liens,
-                       permissions, menus, ressources, adaptateur
-  main/storage/        fichiers de configuration : écriture atomique, migrations
-  main/sessions/       fabrique de sessions durcies (§4, §26)
-  main/views/          WebContentsView, règle de visibilité (§9)
-  main/accounts/       cycle de vie des comptes, reprise après crash (§2, §32)
-  main/notifications/  interception et affichage (§10)
-  main/policy/         Snooze, Focus, horaires appliqués (§12 à §15)
-  main/links/          routage des liens et des popups (§23)
-  main/whatsapp-adapter/  seul code qui lit le contenu de WhatsApp (§35)
-  main/security/       verrouillage par code (F6)
-  main/privacy/        voile de confidentialité (F7)
-  main/proxy/          proxy et relais SOCKS5 local (F9)
-  main/diagnostic/     rapport de diagnostic (F3)
-  shared/i18n/         catalogues français et anglais (F12)
-  main/app.ts          assemblage, état de l’UI, commandes, IPC
-  preload/             coque (API typée) et vues WhatsApp (interception)
-  renderer/            interface React : barre latérale, accueil, modales, paramètres
-tests/                 unitaires, e2e (fausse page WhatsApp), natifs
-packaging/             entrée de bureau, AppStream, PKGBUILD, manifeste Flatpak
-lab/                   Feasibility Lab (phase 0), projet séparé
+  shared/                 constants, identity, zod schemas, IPC contract, display formats
+  shared/i18n/            English and French catalogues
+  main/core/              pure logic without Electron: policy, time zones, states, links,
+                          permissions, menus, resources, adapter, lock, proxy, playback
+  main/storage/           configuration files: atomic writes, migrations
+  main/sessions/          hardened session factory
+  main/views/             WebContentsView per account, visibility rule
+  main/accounts/          account life cycle, crash recovery
+  main/notifications/     notification interception and display
+  main/policy/            Snooze, Focus and schedules applied
+  main/links/             link and popup routing
+  main/whatsapp-adapter/  the only code that reads WhatsApp's content
+  main/security/          passcode lock
+  main/privacy/           privacy veil
+  main/proxy/             proxy and local SOCKS5 relay
+  main/diagnostic/        diagnostic report
+  main/app.ts             wiring, UI state, commands, IPC
+  preload/                shell (typed API) and WhatsApp views (interception)
+  renderer/               React interface: sidebar, home, dialogs, settings
+tests/                    unit, end-to-end (fake WhatsApp page), native
+packaging/                desktop entry, AppStream, PKGBUILD, Flatpak manifest
+lab/                      Feasibility Lab, a separate throwaway project
 ```
 
-## Plan complémentaire
+## Project status
 
-[`docs/plan-fonctionnalites-complementaires.md`](docs/plan-fonctionnalites-complementaires.md) : les quatorze fonctions de la 0.2.0, ce qui a été fait, les écarts avec le plan et ce qui reste à confirmer au Lab.
+Version 0.2.0. Nothing has been published yet.
 
-## Ce qui reste de votre côté
-
-1. **Tests avec de vrais comptes** (`lab/README.md`, `lab/RESULTS.md`) : appels, notifications réelles, latence, accusés de lecture, déconnexion à distance. Ils confirmeront les points marqués expérimentaux : la reconnaissance des notifications d’appel (mode « appels uniquement »), les repères de l’interface des conversations et du flou des messages dans l’adaptateur, la forme des photos de notification, MPRIS, le verrouillage de session sous GNOME et KDE, le trousseau pour les identifiants de proxy (liste complète dans le plan complémentaire).
-2. **Licence** : à choisir (MIT, GPL-3.0-or-later…). Les paquets indiquent « non licencié » en attendant.
-3. **Identifiant de l’application** : `io.github.chapdel.mcdesk` suppose le compte GitHub `chapdel` ; à confirmer avant toute publication (il fixe le dossier de données Flatpak).
-4. **Revue de marque** du nom WhatHush (§38).
-5. **Publication** : dépôt GitHub, releases signées, Flathub (captures d’écran AppStream requises), dépôts APT/RPM, AUR. Rien n’a été publié.
+- **Real-account validation**: the [Feasibility Lab](lab/README.md) protocol still has to be run with real accounts. It will confirm the features marked experimental: call notification recognition ("calls only" mode), the chat markers used by the adapter and the message blur, the shape of notification photos, MPRIS, the session lock on GNOME and KDE, and the keyring for proxy credentials.
+- **License**: not chosen yet; packages are marked as unlicensed in the meantime.
+- **Application ID**: `io.github.chapdel.mcdesk` assumes the GitHub account `chapdel`. It sets the Flatpak data folder, so it must be confirmed before any release.
+- **Name**: WhatHush is a working name, pending a trademark review.
