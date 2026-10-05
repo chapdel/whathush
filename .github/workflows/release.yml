@@ -1,0 +1,57 @@
+name: Release
+
+# Un tag vX.Y.Z construit, teste et dépose les paquets dans une release GitHub en
+# brouillon. Elle n'est visible (et la mise à jour de l'AppImage proposée) qu'une
+# fois publiée à la main depuis la page des releases.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Paquets et release en brouillon
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Le tag correspond à la version
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "Le tag $GITHUB_REF_NAME ne correspond pas à package.json ($version)." >&2
+            exit 1
+          fi
+      - name: Notes de version (métadonnées AppStream)
+        run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > "$RUNNER_TEMP/notes.md"
+      # Ubuntu 24.04 restreint les user namespaces : le sandbox Chromium en a besoin.
+      - name: Autoriser le sandbox Chromium
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: sudo apt-get update && sudo apt-get install -y rpm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright test
+      - run: node tests/native/run.mjs
+      - run: npx electron-builder --linux AppImage deb rpm tar.gz --publish never
+      - name: Auto-test du binaire empaqueté
+        run: WHATHUSH_USER_DATA="$(mktemp -d)" ./release/linux-unpacked/whathush --self-test --ozone-platform=headless
+      - name: Sommes SHA-256
+        working-directory: release
+        run: sha256sum *.AppImage *.deb *.rpm *.tar.gz > SHA256SUMS
+      - name: Release en brouillon
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+            --title "WhatHush ${GITHUB_REF_NAME#v}" --notes-file "$RUNNER_TEMP/notes.md" \
+            release/*.AppImage release/*.deb release/*.rpm release/*.tar.gz \
+            release/latest-linux.yml release/SHA256SUMS

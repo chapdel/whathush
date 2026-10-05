@@ -63,7 +63,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: npm run build
-      - run: npx electron-builder --linux AppImage deb rpm tar.gz
+      - run: npx electron-builder --linux AppImage deb rpm tar.gz --publish never
       # Le binaire empaqueté (fuses actives) doit afficher son interface : c'est ce
       # contrôle qui manquait quand file:// ne pouvait plus lire app.asar.
       - name: Auto-test du binaire empaqueté

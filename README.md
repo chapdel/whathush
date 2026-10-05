@@ -36,18 +36,20 @@ A multi-account WhatsApp Web desktop client for Linux: several isolated accounts
 
 ## Install
 
-Packages are built into `release/` (see [Packages](#packages)).
+Download the package for your distribution from the [latest release](https://github.com/chapdel/whathush/releases/latest) and check it against `SHA256SUMS`.
 
 ```bash
-# AppImage
-chmod +x release/WhatHush-0.2.0-x86_64.AppImage && ./release/WhatHush-0.2.0-x86_64.AppImage
+# AppImage (updates itself)
+chmod +x WhatHush-0.2.0-x86_64.AppImage && ./WhatHush-0.2.0-x86_64.AppImage
 # Debian / Ubuntu (also installs the AppArmor profile required on Ubuntu 24.04+)
-sudo apt install ./release/whathush_0.2.0_amd64.deb
+sudo apt install ./whathush_0.2.0_amd64.deb
 # Fedora
-sudo dnf install ./release/whathush-0.2.0.x86_64.rpm
-# Flatpak (local bundle)
-flatpak install --user release/WhatHush-0.2.0.flatpak
+sudo dnf install ./whathush-0.2.0.x86_64.rpm
+# Arch Linux (AUR)
+yay -S whathush-bin
 ```
+
+Flathub (`flatpak install flathub io.github.chapdel.mcdesk`) will follow once the submission is accepted.
 
 On first launch, add an account and scan the QR code from your phone (WhatsApp → Linked devices). Each account uses one linked device (at most 4 per phone number).
 
@@ -78,18 +80,20 @@ When launched from KDE Wayland, the X11 backend runs through XWayland. Automated
 ## Packages
 
 ```bash
-npm run build && npx electron-builder --linux AppImage tar.gz     # on the host
+npm run build && npx electron-builder --linux AppImage tar.gz --publish never   # on the host
 # .deb and .rpm: fpm needs libcrypt.so.1 (missing from Fedora 44) and rpmbuild,
 # hence a container:
 podman run --rm --security-opt label=disable -v "$PWD":/work -w /work \
   registry.fedoraproject.org/fedora:44 bash -c \
-  "dnf install -y nodejs rpm-build libxcrypt-compat && npx electron-builder --linux rpm deb --prepackaged release/linux-unpacked"
-# Flatpak
-# --disable-cache: otherwise flatpak-builder may reuse an older cached build
-flatpak run org.flatpak.Builder --user --force-clean --disable-cache --state-dir=release/.flatpak-builder \
+  "dnf install -y nodejs rpm-build libxcrypt-compat && npx electron-builder --linux rpm deb --prepackaged release/linux-unpacked --publish never"
+# Flatpak, built from source and offline, like on Flathub
+# (--no-documents-portal only works around a broken document portal on the host)
+flatpak run --no-documents-portal org.flatpak.Builder --user --install-deps-from=flathub --force-clean \
   --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.mcdesk.yml
 flatpak build-bundle release/flatpak-repo release/WhatHush-0.2.0.flatpak io.github.chapdel.mcdesk
 ```
+
+After any change to `package-lock.json`, regenerate the Flatpak's npm sources with `packaging/flatpak/update-sources.sh` (needs [flatpak-node-generator](https://github.com/flatpak/flatpak-builder-tools/tree/master/node)). `npm run screenshots` regenerates the AppStream screenshots in `packaging/screenshots/`.
 
 `whathush --self-test` actually starts the packaged application (with its fuses enabled), checks that the interface renders and prints a JSON summary, including the build fingerprint (`build`: commit and date). Comparing that fingerprint with `dist/build-info.json` proves the package contains the expected build rather than a stale cached one.
 
@@ -99,7 +103,7 @@ flatpak build-bundle release/flatpak-repo release/WhatHush-0.2.0.flatpak io.gith
 | `.deb` | installed in Ubuntu 24.04: dependencies, files, desktop entry, AppArmor profile, self-test with rendering |
 | `.rpm` | installed in Fedora 44: dependencies, valid desktop entry, self-test with rendering |
 | AUR (`packaging/aur/PKGBUILD`) | `makepkg` (checksums verified), then `pacman -U` in Arch Linux, self-test with rendering |
-| Flatpak | built on the Electron 25.08 base app with zypak, installed, self-test with rendering inside the real sandbox, uninstalled |
+| Flatpak | built from source on the Electron 25.08 base app with zypak, installed, self-test with rendering inside the real sandbox, uninstalled |
 
 The packaged binary has its Electron fuses set: no `RunAsNode`, no `NODE_OPTIONS`, no `--inspect`, cookie encryption on, and the app loads only from its ASAR archive.
 
@@ -131,11 +135,20 @@ packaging/                desktop entry, AppStream, PKGBUILD, Flatpak manifest
 lab/                      Feasibility Lab, a separate throwaway project
 ```
 
+## Releasing
+
+1. Bump `version` in `package.json` and `pkgver` in `packaging/aur/PKGBUILD`, and add a `<release>` entry to `packaging/linux/io.github.chapdel.mcdesk.metainfo.xml`: its English text becomes the release notes.
+2. Commit, then push a tag: `git tag v0.2.0 && git push origin master v0.2.0`. The [Release workflow](.github/workflows/release.yml) runs every test, builds the packages and creates a **draft** release with `SHA256SUMS` and `latest-linux.yml`.
+3. Check the draft on GitHub, then publish it. Running AppImages pick up the update from then on.
+4. **AUR**: `git clone ssh://aur@aur.archlinux.org/whathush-bin.git ../whathush-bin`, then `packaging/aur/update.sh ../whathush-bin` (checksums and `.SRCINFO`, computed in an Arch container with podman), then commit and push in `../whathush-bin`.
+5. **Flathub**: `packaging/flatpak/prepare-flathub.sh <folder>` writes the manifest pinned to the tag, the npm sources and `flathub.json`. The first time, open a pull request against the `new-pr` branch of [flathub/flathub](https://github.com/flathub/flathub); afterwards, commit to the app's own Flathub repository.
+
 ## Project status
 
-Version 0.2.0. Nothing has been published yet.
+Version 0.2.0, not published yet.
 
 - **Real-account validation**: the [Feasibility Lab](lab/README.md) protocol still has to be run with real accounts. It will confirm the features marked experimental: call notification recognition ("calls only" mode), the chat markers used by the adapter and the message blur, the shape of notification photos, MPRIS, the session lock on GNOME and KDE, and the keyring for proxy credentials.
-- **License**: not chosen yet; packages are marked as unlicensed in the meantime.
-- **Application ID**: `io.github.chapdel.mcdesk` assumes the GitHub account `chapdel`. It sets the Flatpak data folder, so it must be confirmed before any release.
-- **Name**: WhatHush is a working name, pending a trademark review.
+
+## License
+
+WhatHush is free software, released under the [GNU General Public License v3.0 or later](LICENSE). The bundled spell-checking dictionaries keep their own licenses (MPL 2.0 for French, SCOWL for English); see `build/dictionaries/NOTICE.txt`.

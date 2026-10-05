@@ -1,7 +1,7 @@
 # Maintainer: chapdel <iamchapdel@gmail.com>
 #
-# Paquet AUR « -bin » : réempaquette l'archive tar.gz publiée par electron-builder.
-# Avant publication : publier la release, mettre à jour pkgver et les sommes (updpkgsums).
+# Paquet AUR « -bin » : réempaquette l'archive tar.gz de la release GitHub.
+# Après chaque release publiée : packaging/aur/update.sh <clone AUR> (sommes et .SRCINFO).
 
 pkgname=whathush-bin
 _appid=io.github.chapdel.mcdesk
@@ -10,7 +10,7 @@ pkgrel=1
 pkgdesc="Several WhatsApp Web accounts side by side, with Snooze, Focus and deep sleep (not affiliated with WhatsApp or Meta)"
 arch=('x86_64')
 url="https://github.com/chapdel/whathush"
-license=('LicenseRef-proprietary')
+license=('GPL-3.0-or-later')
 depends=('gtk3' 'libnotify' 'nss' 'libxss' 'libxtst' 'xdg-utils' 'at-spi2-core' 'util-linux-libs' 'libsecret' 'alsa-lib')
 optdepends=('pipewire: screen sharing on Wayland'
             'xdg-desktop-portal: screen sharing picker'
@@ -20,13 +20,14 @@ optdepends=('pipewire: screen sharing on Wayland'
 provides=('whathush')
 conflicts=('whathush')
 options=('!strip' '!debug')
+_raw="https://raw.githubusercontent.com/chapdel/whathush/v${pkgver}"
 source=("whathush-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/whathush-${pkgver}.tar.gz"
-        "${_appid}.desktop"
-        "${_appid}.metainfo.xml"
-        "${_appid}.png")
+        "${_appid}.desktop::${_raw}/packaging/linux/${_appid}.desktop"
+        "${_appid}.metainfo.xml::${_raw}/packaging/linux/${_appid}.metainfo.xml"
+        "${_appid}.png::${_raw}/build/icons/512x512.png")
 sha256sums=('dfd4d7ca3f5354fc2212e94ff2b926c8593b38c947e99fa667d7b1c3ef814228'
             '60f8a2a30515861d4e8822a668faf24269a5225a993dd8eee2d7bace41a1a791'
-            'd2f1e86c874fcbffcc619885de264faee8664cd389160ed352963525b746755f'
+            '6f7ecc095284cb5133255a4614e13b3205306b58eefb4778fc7cf816a933241b'
             '1cae46e4c22a84c4735cac999c458bb94ebb844a511ed410b16c26e4b08a81c7')
 
 package() {

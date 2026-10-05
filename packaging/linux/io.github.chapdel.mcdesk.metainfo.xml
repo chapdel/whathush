@@ -3,8 +3,7 @@
 <component type="desktop-application">
   <id>io.github.chapdel.mcdesk</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <!-- Licence à choisir avant publication (MIT, GPL-3.0-or-later…). -->
-  <project_license>LicenseRef-proprietary</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <name>WhatHush</name>
   <summary>Several WhatsApp Web accounts, with Snooze and Focus</summary>
   <summary xml:lang="fr">Plusieurs comptes WhatsApp Web, Snooze et Focus</summary>
@@ -43,8 +42,35 @@
     </p>
   </description>
   <launchable type="desktop-id">io.github.chapdel.mcdesk.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Several accounts side by side, with Snooze and deep sleep</caption>
+      <caption xml:lang="fr">Plusieurs comptes côte à côte, avec Snooze et veille profonde</caption>
+      <image>https://raw.githubusercontent.com/chapdel/whathush/master/packaging/screenshots/accounts.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Dark theme</caption>
+      <caption xml:lang="fr">Thème sombre</caption>
+      <image>https://raw.githubusercontent.com/chapdel/whathush/master/packaging/screenshots/dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Automatic Snooze by day and time</caption>
+      <caption xml:lang="fr">Snooze automatique selon le jour et l’heure</caption>
+      <image>https://raw.githubusercontent.com/chapdel/whathush/master/packaging/screenshots/schedules.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Lock with a code</caption>
+      <caption xml:lang="fr">Verrouillage par code</caption>
+      <image>https://raw.githubusercontent.com/chapdel/whathush/master/packaging/screenshots/lock.png</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#e9e5ff</color>
+    <color type="primary" scheme_preference="dark">#241a52</color>
+  </branding>
   <url type="homepage">https://github.com/chapdel/whathush</url>
   <url type="bugtracker">https://github.com/chapdel/whathush/issues</url>
+  <url type="vcs-browser">https://github.com/chapdel/whathush</url>
   <categories>
     <category>Network</category>
     <category>InstantMessaging</category>
@@ -77,7 +103,8 @@
     </release>
     <release version="0.1.0" date="2026-10-04">
       <description>
-        <p>Première version : comptes multiples, Snooze, Focus, horaires, veille profonde.</p>
+        <p>First release: multiple accounts, Snooze, Focus, schedules, deep sleep.</p>
+        <p xml:lang="fr">Première version : comptes multiples, Snooze, Focus, horaires, veille profonde.</p>
       </description>
     </release>
   </releases>

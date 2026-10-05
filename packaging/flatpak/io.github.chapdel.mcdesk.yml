@@ -1,6 +1,10 @@
-# Manifeste Flatpak. Construit à partir de l'archive tar.gz d'electron-builder.
-# Local : sources « path » ci-dessous. Flathub : remplacer par l'URL de la release
-# publiée et sa somme sha256 (les règles de Flathub sur les marques s'appliquent).
+# Flatpak manifest, built from source and offline, as Flathub requires: npm
+# dependencies come from generated-sources.json (packaging/flatpak/update-sources.sh).
+# The source here is this repository; packaging/flatpak/prepare-flathub.sh swaps it
+# for the release's Git tag in the Flathub repository.
+#
+#   flatpak run --no-documents-portal org.flatpak.Builder --user --install-deps-from=flathub \
+#     --force-clean --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.mcdesk.yml
 
 app-id: io.github.chapdel.mcdesk
 runtime: org.freedesktop.Platform
@@ -8,6 +12,8 @@ runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
 base-version: '25.08'
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node22
 command: whathush
 separate-locales: false
 
@@ -18,53 +24,66 @@ finish-args:
   - --socket=fallback-x11
   - --socket=pulseaudio
   - --device=dri
-  # Caméra des appels vidéo : pas encore de portail caméra utilisable par Electron.
+  # Camera for video calls: Electron cannot use the camera portal yet.
   - --device=all
   - --talk-name=org.freedesktop.Notifications
-  # Tray : StatusNotifierItem.
+  # Tray icon (StatusNotifierItem).
   - --talk-name=org.kde.StatusNotifierWatcher
-  # Verrouillage avec la session : économiseur d'écran et logind, en écoute seulement.
+  # Lock together with the desktop session: screensaver and logind, listen only.
   - --talk-name=org.freedesktop.ScreenSaver
   - --talk-name=org.gnome.ScreenSaver
   - --system-talk-name=org.freedesktop.login1
-  # Identifiants de proxy chiffrés : trousseau du système via safeStorage.
+  # Encrypted proxy credentials: system keyring through Electron safeStorage.
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.kde.kwalletd6
   - --talk-name=org.kde.kwalletd5
   - --filesystem=xdg-download
-  # Wayland natif avec saisie IME.
+  # Native Wayland with IME input.
   - --env=ELECTRON_OZONE_PLATFORM_HINT=auto
+
+build-options:
+  append-path: /usr/lib/sdk/node22/bin
 
 modules:
   - name: whathush
     buildsystem: simple
+    build-options:
+      env:
+        XDG_CACHE_HOME: /run/build/whathush/flatpak-node/cache
+        npm_config_cache: /run/build/whathush/flatpak-node/npm-cache
+        npm_config_offline: 'true'
+    build-commands:
+      - npm ci --offline
+      - npm run build
+      # Electron comes from the offline cache filled by generated-sources.json.
+      - |
+        . flatpak-node/electron-builder-arch-args.sh
+        npx electron-builder $ELECTRON_BUILDER_ARCH_ARGS --linux --dir --publish never \
+          -c.electronDist=flatpak-node/cache/electron
+      - cp -a release/linux*unpacked /app/whathush
+      - install -Dm755 whathush.sh /app/bin/whathush
+      - install -Dm644 packaging/linux/io.github.chapdel.mcdesk.desktop /app/share/applications/io.github.chapdel.mcdesk.desktop
+      - install -Dm644 packaging/linux/io.github.chapdel.mcdesk.metainfo.xml /app/share/metainfo/io.github.chapdel.mcdesk.metainfo.xml
+      - |
+        for size in 128 256 512; do
+          install -Dm644 build/icons/${size}x${size}.png /app/share/icons/hicolor/${size}x${size}/apps/io.github.chapdel.mcdesk.png
+        done
     sources:
-      - type: archive
-        path: ../../release/whathush-0.2.0.tar.gz
-        dest: app
-      - type: file
-        path: ../linux/io.github.chapdel.mcdesk.desktop
-      - type: file
-        path: ../linux/io.github.chapdel.mcdesk.metainfo.xml
-      - type: file
-        path: ../../build/icons/512x512.png
-        dest-filename: icon-512.png
-      - type: file
-        path: ../../build/icons/256x256.png
-        dest-filename: icon-256.png
-      - type: file
-        path: ../../build/icons/128x128.png
-        dest-filename: icon-128.png
+      # Local source (replaced for Flathub): this repository, minus build outputs.
+      - type: dir
+        path: ../..
+        skip:
+          - node_modules
+          - dist
+          - release
+          - test-results
+          - playwright-report
+          - lab/node_modules
+          - lab/dist
+          - .flatpak-builder
+      - generated-sources.json
       - type: script
         dest-filename: whathush.sh
         commands:
-          # zypak : le bac à sable Chromium à l'intérieur du bac à sable Flatpak.
+          # zypak: Chromium's sandbox inside the Flatpak sandbox.
           - exec zypak-wrapper /app/whathush/whathush "$@"
-    build-commands:
-      - cp -a app /app/whathush
-      - install -Dm755 whathush.sh /app/bin/whathush
-      - install -Dm644 io.github.chapdel.mcdesk.desktop /app/share/applications/io.github.chapdel.mcdesk.desktop
-      - install -Dm644 io.github.chapdel.mcdesk.metainfo.xml /app/share/metainfo/io.github.chapdel.mcdesk.metainfo.xml
-      - install -Dm644 icon-512.png /app/share/icons/hicolor/512x512/apps/io.github.chapdel.mcdesk.png
-      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.chapdel.mcdesk.png
-      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/io.github.chapdel.mcdesk.png

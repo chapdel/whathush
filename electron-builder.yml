@@ -1,10 +1,11 @@
-# Packaging Linux : AppImage, .deb, .rpm, archive tar.gz (base du paquet AUR
-# et du manifeste Flatpak). Rien n'est publié : `publish: null`.
+# Packaging Linux : AppImage, .deb, .rpm, archive tar.gz (base du paquet AUR).
+# Les paquets ne sont publiés que par le workflow release.yml (gh release) :
+# toute commande locale ou de CI passe --publish never.
 
 appId: io.github.chapdel.mcdesk
 productName: WhatHush
 executableName: whathush
-copyright: "© 2026 chapdel — projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms"
+copyright: "© 2026 chapdel. Independent project, not affiliated with WhatsApp LLC or Meta Platforms."
 
 directories:
   output: release
@@ -14,6 +15,11 @@ files:
   - dist/**/*
   - "!dist/**/*.map"
   - package.json
+
+# GPL : le texte de la licence accompagne chaque binaire distribué.
+extraFiles:
+  - from: LICENSE
+    to: LICENSE
 
 # Fuses Electron, appliquées au binaire empaqueté.
 electronFuses:
@@ -84,4 +90,9 @@ rpm:
     - libuuid
     - libsecret
 
-publish: null
+# Releases GitHub : electron-builder écrit app-update.yml dans le paquet et
+# latest-linux.yml à côté, ce qui active la mise à jour automatique de l'AppImage.
+publish:
+  provider: github
+  owner: chapdel
+  repo: whathush

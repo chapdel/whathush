@@ -12,9 +12,10 @@
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
     "icons": "node scripts/icons.mjs",
-    "dist": "npm run build && electron-builder --linux AppImage deb",
-    "dist:all": "npm run build && electron-builder --linux AppImage deb rpm pacman tar.gz",
+    "dist": "npm run build && electron-builder --linux AppImage deb --publish never",
+    "dist:all": "npm run build && electron-builder --linux AppImage deb rpm pacman tar.gz --publish never",
     "test:native": "npm run build && node tests/native/run.mjs",
+    "screenshots": "npm run build && playwright test --config playwright.screenshots.config.ts",
     "demo": "npm run build && node scripts/fake-whatsapp.mjs"
   },
   "devDependencies": {
@@ -39,7 +40,7 @@
   "main": "dist/main/index.cjs",
   "desktopName": "io.github.chapdel.mcdesk.desktop",
   "homepage": "https://github.com/chapdel/whathush",
-  "license": "UNLICENSED",
+  "license": "GPL-3.0-or-later",
   "author": {
     "name": "chapdel",
     "email": "iamchapdel@gmail.com"

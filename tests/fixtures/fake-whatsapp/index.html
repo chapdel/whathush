@@ -33,6 +33,7 @@
     .tools button, .tools a { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: inherit; font: inherit; font-size: 12.5px; text-decoration: none; cursor: pointer; }
     .composer { margin: 0 18px 10px; padding: 10px 12px; min-height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
     .photo { width: 120px; height: 80px; border-radius: 8px; display: block; }
+    .composer:empty::before { content: attr(data-placeholder); color: var(--muted); }
   </style>
 </head>
 <body>
@@ -111,6 +112,66 @@
       on("popup", () => window.open("/popup", "_blank", "width=420,height=320"));
       on("download", () => fake.download());
       on("logout", () => fake.logout());
+    }
+
+    // Captures AppStream : conversations fictives en anglais, sans bandeau ni boutons de test.
+    const SHOWCASE = {
+      work: {
+        chats: [
+          ["Design team", "Ana: New mockups are in the folder", "#60a5fa", 2],
+          ["Product launch", "Tom: Demo moved to 3 pm", "#f472b6", 1],
+          ["Ana Lopez", "See you at the review", "#34d399", 0],
+          ["Customer success", "Thanks, it works now!", "#fbbf24", 0],
+          ["Ops", "Deploy finished ✅", "#a78bfa", 0]
+        ],
+        title: "Design team",
+        messages: [
+          ["Ana", "Morning! The new mockups are in the shared folder."],
+          [null, "Great, I'll review them before lunch."],
+          ["Ana", "I also added the onboarding flow and the empty states."],
+          ["Ana", "The dark theme is in there too 🙂"]
+        ]
+      },
+      personal: {
+        chats: [
+          ["Cycling club", "Ride at 9 tomorrow, meet at the bridge", "#a78bfa", 2],
+          ["Mom", "Dinner on Sunday? 🍝", "#fbbf24", 1],
+          ["Alex", "Haha, perfect", "#34d399", 0],
+          ["Book club", "Next pick: The Overstory", "#60a5fa", 0],
+          ["Sam", "Thanks for yesterday!", "#f472b6", 0]
+        ],
+        title: "Cycling club",
+        messages: [
+          ["Leo", "Who's in for tomorrow's ride?"],
+          [null, "Count me in! Same route as last week?"],
+          ["Leo", "Ride at 9 tomorrow, meet at the bridge"]
+        ]
+      }
+    };
+    function renderShowcase(profile) {
+      const { chats, title, messages } = SHOWCASE[profile];
+      document.documentElement.lang = "en";
+      document.querySelector(".banner")?.remove();
+      app.innerHTML = `
+        <div class="layout">
+          <div id="pane-side">
+            <div class="side-head">Chats</div>
+            ${chats.map(([name, last, color, count]) => `
+              <div class="chat"><span class="pic" style="background:${color}"></span>
+                <div><div class="name">${name}</div><div class="last">${last}</div></div>
+                ${count ? `<span class="count">${count}</span>` : ""}
+              </div>`).join("")}
+          </div>
+          <div class="conversation" id="main">
+            <div class="conv-head">${title}</div>
+            <div class="messages">
+              ${messages.map(([author, text]) => `<div class="msg${author ? "" : " mine"}">${text}</div>`).join("")}
+            </div>
+            <div class="composer" data-placeholder="Type a message"></div>
+          </div>
+        </div>`;
+      setUnread(chats.reduce((total, chat) => total + chat[3], 0));
+      return true;
     }
 
     // Image d'une conversation (copier l'image) et sons de test.
@@ -200,7 +261,8 @@
       },
       blurred: () => getComputedStyle(document.documentElement).filter,
       visibility: () => document.visibilityState,
-      pageId: () => localStorage.getItem("fakePageId")
+      pageId: () => localStorage.getItem("fakePageId"),
+      showcase: (profile = "work") => renderShowcase(profile)
     };
 
     if (localStorage.getItem("fakeLinked") === "1") { renderChats(); setUnread(3); } else { renderLinking(); setUnread(0); }
