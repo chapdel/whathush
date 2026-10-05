@@ -142,6 +142,8 @@ export interface SettingsState {
     lock: { enabled: boolean; onStart: boolean; onHide: boolean; idleMinutes: number; onScreenLock: boolean };
     secureStorage: boolean;
     proxyCredentials: { global: boolean; accounts: Record<string, boolean> };
+    /** Résultat du dernier changement ou de la dernière désactivation du code (formulaire). */
+    lastCodeResult: { sequence: number; result: "ok" | "invalid" | "wrong-current" } | null;
   };
   /** F9 : dernier test de connexion, par portée (« global » ou compte). */
   proxyTests: Record<string, { ok: boolean; route: string; error?: string; running?: boolean }>;

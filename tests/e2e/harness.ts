@@ -23,7 +23,7 @@ export interface Harness {
 
 export async function launch(options: { userData?: string; fakeUrl?: string; platform?: "headless" | "wayland" | "x11"; scaleFactor?: number; screenSize?: string; tray?: boolean; systemLanguage?: "fr" | "en"; env?: Record<string, string> } = {}): Promise<Harness & { stopFake(): void }> {
   const fake: { url: string; avatarOrigin?: string; close(): void } = options.fakeUrl ? { url: options.fakeUrl, close: () => undefined } : await startFakeWhatsApp();
-  const userData = options.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), "whathush-e2e-"));
+  const userData = options.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), `whathush-e2e-${process.env.WHATHUSH_E2E_RUN ?? "manuel"}-`));
   const app = await electron.launch({
     args: [root, `--ozone-platform=${options.platform ?? "headless"}`, `--ozone-override-screen-size=${options.screenSize ?? "1440,920"}`, ...(options.scaleFactor ? [`--force-device-scale-factor=${options.scaleFactor}`] : [])],
     env: {

@@ -23,7 +23,27 @@ function listen(server) {
 
 export async function startFakeWhatsApp() {
   const html = fs.readFileSync(page);
-  const server = http.createServer((_request, response) => {
+  const server = http.createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://localhost");
+    // Téléchargement lent (tests F2) : l'état « en cours » est observable.
+    if (url.pathname === "/slow-file") {
+      const name = (url.searchParams.get("name") ?? "lent.bin").replace(/[^\w.-]/g, "_");
+      const total = 64 * 1024;
+      const duration = Number(url.searchParams.get("ms") ?? "2000");
+      response.writeHead(200, { "content-type": "application/octet-stream", "content-length": String(total), "content-disposition": `attachment; filename="${name}"` });
+      let sent = 0;
+      const timer = setInterval(() => {
+        const chunk = Math.min(total / 16, total - sent);
+        response.write(Buffer.alloc(chunk, 0x61));
+        sent += chunk;
+        if (sent >= total) {
+          clearInterval(timer);
+          response.end();
+        }
+      }, duration / 16);
+      request.on("close", () => clearInterval(timer));
+      return;
+    }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
     response.end(html);
   });
@@ -31,6 +51,12 @@ export async function startFakeWhatsApp() {
     if (request.url?.startsWith("/avatar.png")) {
       response.writeHead(200, { "content-type": "image/png" });
       response.end(AVATAR);
+    } else if (request.url?.startsWith("/slow-avatar.png")) {
+      // Photo lente (tests F6) : le verrou peut s'engager pendant son téléchargement.
+      setTimeout(() => {
+        response.writeHead(200, { "content-type": "image/png" });
+        response.end(AVATAR);
+      }, 1200);
     } else if (request.url?.startsWith("/huge.png")) {
       // Au-delà de 256 Kio : refusée par le processus principal.
       response.writeHead(200, { "content-type": "image/png" });

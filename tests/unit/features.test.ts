@@ -101,6 +101,30 @@ describe("lecture des médias (F14)", () => {
     expect(tracker.forAccount("b", 0)).toBeNull();
   });
 
+  it("revue : l'origine reste celle de l'utilisateur après pause et reprise dans une page cachée", () => {
+    const tracker = new PlaybackTracker();
+    tracker.report("a", 1, report("playing", true), 0);
+    // Pause depuis la barre latérale, page cachée : rapport « hidden ».
+    tracker.report("a", 1, report("paused", false), 10);
+    tracker.report("a", 1, report("playing", false), 20);
+    expect(tracker.forAccount("a", 20)?.userStarted).toBe(true);
+    // Le vocal suivant, enchaîné automatiquement, reste « de l'utilisateur ».
+    tracker.report("a", 1, report("ended", false), 30);
+    tracker.report("a", 1, report("playing", false), 1000);
+    expect(tracker.forAccount("a", 1000)?.userStarted).toBe(true);
+  });
+
+  it("revue : « Reprendre » depuis l'application compte comme un geste de l'utilisateur", () => {
+    const tracker = new PlaybackTracker();
+    tracker.report("a", 1, report("paused", false), 0);
+    tracker.markUserResume(1);
+    tracker.report("a", 1, report("playing", false), 10);
+    expect(tracker.forAccount("a", 10)?.userStarted).toBe(true);
+    // Un son lancé par une page cachée, de lui-même, n'en est pas un.
+    tracker.report("b", 2, report("playing", false), 0);
+    expect(tracker.forAccount("b", 0)?.userStarted).toBe(false);
+  });
+
   it("une reprise garde l'origine de la lecture (lancée par l'utilisateur)", () => {
     const tracker = new PlaybackTracker();
     tracker.report("a", 1, report("playing", true), 0);
@@ -196,6 +220,8 @@ describe("verrouillage (F6)", () => {
     expect(retryAt({ count: 3, lastAt: "2026-10-05T11:59:58Z" }, now)?.toISOString()).toBe("2026-10-05T12:00:02.000Z");
     expect(retryAt({ count: 3, lastAt: "2026-10-05T11:59:00Z" }, now)).toBeNull();
     expect(retryAt({ count: 0, lastAt: null }, now)).toBeNull();
+    // Revue : horloge revenue en arrière, échec daté du futur → aucune attente sans fin.
+    expect(retryAt({ count: 8, lastAt: "2027-03-01T00:00:00Z" }, now)).toBeNull();
   });
 
   it("verrouille selon les déclencheurs choisis", () => {

@@ -165,59 +165,83 @@ async function applyWhatsappLinkHandler(enabled: boolean, log: Logger): Promise<
   return true;
 }
 
+/** Ce dont le menu contextuel a besoin d'une page (une WebContents, ou un double en test). */
+export interface ContextMenuTarget {
+  replaceMisspelling(word: string): void;
+  addWordToDictionary(word: string): void;
+  pasteAndMatchStyle(): void;
+  copyImageAt(x: number, y: number): void;
+  downloadURL(url: string): void;
+  inspectElement(x: number, y: number): void;
+  copyText(text: string): void;
+}
+
+type ContextParams = Pick<ContextMenuParams, "misspelledWord" | "dictionarySuggestions" | "isEditable" | "editFlags" | "selectionText" | "mediaType" | "srcURL" | "linkURL" | "x" | "y">;
+
+/** §24, F13 : modèle du menu contextuel d'une vue WhatsApp. */
+export function contextMenuTemplate(params: ContextParams, target: ContextMenuTarget, options: { devTools: boolean; openLink(url: string): void }): MenuItemConstructorOptions[] {
+  const items: MenuItemConstructorOptions[] = [];
+
+  if (params.misspelledWord) {
+    for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+      items.push({ label: suggestion, click: () => target.replaceMisspelling(suggestion) });
+    }
+    items.push({ label: t("context.addToDictionary"), click: () => target.addWordToDictionary(params.misspelledWord) });
+    items.push({ type: "separator" });
+  }
+
+  if (params.isEditable) {
+    items.push(
+      { role: "undo", label: t("context.undo"), enabled: params.editFlags.canUndo },
+      { role: "redo", label: t("context.redo"), enabled: params.editFlags.canRedo },
+      { type: "separator" },
+      { role: "cut", label: t("context.cut"), enabled: params.editFlags.canCut },
+      { role: "copy", label: t("context.copy"), enabled: params.editFlags.canCopy },
+      { role: "paste", label: t("context.paste"), enabled: params.editFlags.canPaste },
+      // F13 : sans la mise en forme de la source (Ctrl+Maj+V, géré par Chromium).
+      { label: t("context.pastePlain"), accelerator: "CommandOrControl+Shift+V", enabled: params.editFlags.canPaste, click: () => target.pasteAndMatchStyle() },
+      { role: "selectAll", label: t("context.selectAll") }
+    );
+  } else if (params.selectionText) {
+    items.push({ role: "copy", label: t("context.copy") });
+  }
+
+  if (params.mediaType === "image" && params.srcURL) {
+    if (items.length > 0) items.push({ type: "separator" });
+    items.push(
+      { label: t("context.copyImage"), click: () => target.copyImageAt(params.x, params.y) },
+      { label: t("context.saveImage"), click: () => target.downloadURL(params.srcURL) }
+    );
+  }
+
+  if (params.linkURL) {
+    if (items.length > 0) items.push({ type: "separator" });
+    items.push(
+      { label: t("context.copyLink"), click: () => target.copyText(params.linkURL) },
+      { label: t("context.openLink"), click: () => options.openLink(params.linkURL) }
+    );
+  }
+
+  if (options.devTools) {
+    if (items.length > 0) items.push({ type: "separator" });
+    items.push({ label: t("context.inspect"), click: () => target.inspectElement(params.x, params.y) });
+  }
+  return items;
+}
+
 /** §24 : menu contextuel des vues WhatsApp (Electron n'en fournit aucun). */
 export function attachContextMenu(webContents: WebContents, options: { devTools: boolean; openLink(url: string): void }): void {
+  const target: ContextMenuTarget = {
+    replaceMisspelling: (word) => webContents.replaceMisspelling(word),
+    addWordToDictionary: (word) => webContents.session.addWordToSpellCheckerDictionary(word),
+    pasteAndMatchStyle: () => webContents.pasteAndMatchStyle(),
+    copyImageAt: (x, y) => webContents.copyImageAt(x, y),
+    downloadURL: (url) => webContents.downloadURL(url),
+    inspectElement: (x, y) => webContents.inspectElement(x, y),
+    copyText: (text) => void clipboard.writeText(text).catch(() => undefined)
+  };
   webContents.on("context-menu", (_event, params: ContextMenuParams) => {
-    const items: MenuItemConstructorOptions[] = [];
-
-    if (params.misspelledWord) {
-      for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
-        items.push({ label: suggestion, click: () => webContents.replaceMisspelling(suggestion) });
-      }
-      items.push({
-        label: t("context.addToDictionary"),
-        click: () => webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
-      });
-      items.push({ type: "separator" });
-    }
-
-    if (params.isEditable) {
-      items.push(
-        { role: "undo", label: t("context.undo"), enabled: params.editFlags.canUndo },
-        { role: "redo", label: t("context.redo"), enabled: params.editFlags.canRedo },
-        { type: "separator" },
-        { role: "cut", label: t("context.cut"), enabled: params.editFlags.canCut },
-        { role: "copy", label: t("context.copy"), enabled: params.editFlags.canCopy },
-        { role: "paste", label: t("context.paste"), enabled: params.editFlags.canPaste },
-        // F13 : sans la mise en forme de la source (Ctrl+Maj+V, géré par Chromium).
-        { label: t("context.pastePlain"), accelerator: "CommandOrControl+Shift+V", enabled: params.editFlags.canPaste, click: () => webContents.pasteAndMatchStyle() },
-        { role: "selectAll", label: t("context.selectAll") }
-      );
-    } else if (params.selectionText) {
-      items.push({ role: "copy", label: t("context.copy") });
-    }
-
-    if (params.mediaType === "image" && params.srcURL) {
-      if (items.length > 0) items.push({ type: "separator" });
-      items.push(
-        { label: t("context.copyImage"), click: () => webContents.copyImageAt(params.x, params.y) },
-        { label: t("context.saveImage"), click: () => webContents.downloadURL(params.srcURL) }
-      );
-    }
-
-    if (params.linkURL) {
-      if (items.length > 0) items.push({ type: "separator" });
-      items.push(
-        { label: t("context.copyLink"), click: () => void clipboard.writeText(params.linkURL).catch(() => undefined) },
-        { label: t("context.openLink"), click: () => options.openLink(params.linkURL) }
-      );
-    }
-
-    if (options.devTools) {
-      if (items.length > 0) items.push({ type: "separator" });
-      items.push({ label: t("context.inspect"), click: () => webContents.inspectElement(params.x, params.y) });
-    }
-
+    const items = contextMenuTemplate(params, target, options);
     if (items.length > 0) Menu.buildFromTemplate(items).popup();
   });
 }

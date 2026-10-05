@@ -157,6 +157,14 @@
       logout() { localStorage.removeItem("fakeLinked"); renderLinking(); setUnread(0); },
       async mic() { streams.push(await navigator.mediaDevices.getUserMedia({ audio: true })); return true; },
       stop() { streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop())); streams = []; return true; },
+      /** Téléchargement servi lentement par le faux serveur (en cours pendant ms). */
+      downloadSlow(name = "lent.bin", ms = 2000) {
+        const link = document.createElement("a");
+        link.href = `/slow-file?name=${encodeURIComponent(name)}&ms=${ms}`;
+        link.download = name;
+        link.click();
+        return true;
+      },
       download(name = "rapport.txt") {
         const link = document.createElement("a");
         link.href = URL.createObjectURL(new Blob(["contenu de test\n"], { type: "text/plain" }));

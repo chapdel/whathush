@@ -48,7 +48,7 @@ function NowPlaying({ state, collapsed }: { state: ShellState; collapsed: boolea
     <div className="now-playing" role="status" aria-label={`${heading} · ${title}`}>
       <span className="now-playing-text"><strong>{media.label}</strong><small>{media.playing ? title : `${t("media.pausedShort")} · ${title}`}</small></span>
       <button type="button" className="icon-btn" aria-label={toggleLabel} title={toggleLabel} onClick={toggle}><Icon name={media.playing ? "pause" : "play"} /></button>
-      <button type="button" className="icon-btn" aria-label={t("common.show")} title={t("common.show")} onClick={() => api.command({ type: "switch-account", id: media.accountId })}><Icon name="expand" /></button>
+      <button type="button" className="icon-btn" aria-label={t("media.showAccount", { label: media.label })} title={t("media.showAccount", { label: media.label })} onClick={() => api.command({ type: "switch-account", id: media.accountId })}><Icon name="expand" /></button>
     </div>
   );
 }
@@ -58,23 +58,27 @@ function DownloadsIndicator({ state, collapsed }: { state: ShellState; collapsed
   const { active, progress } = state.downloads;
   if (active === 0) return null;
   const label = t("downloads.active", { count: active });
-  const percent = progress === null ? null : Math.round(progress * 100);
+  const percent = progress === null ? null : formatNumber(progress, { style: "percent", maximumFractionDigits: 0 });
   return (
     <button type="button" className={collapsed ? "icon-btn downloads-indicator" : "btn btn-ghost downloads-indicator"} title={label} aria-label={label}
       onClick={() => api.command({ type: "open-settings", section: "downloads" })}>
       <Icon name="download" />
-      {!collapsed && <span>{label}{percent !== null ? ` · ${formatNumber(percent)} %` : ""}</span>}
-      <span className="progress" aria-hidden="true"><span style={{ width: `${percent ?? 0}%` }} /></span>
+      {!collapsed && <span>{label}{percent !== null ? ` · ${percent}` : ""}</span>}
+      <span className="progress" aria-hidden="true"><span style={{ width: `${Math.round((progress ?? 0) * 100)}%` }} /></span>
     </button>
   );
 }
+
+/** Dernier zoom montré : la barre latérale remontée (après un verrou) ne le remontre pas. */
+let shownZoomSequence = 0;
 
 /** F1 : zoom qui vient de changer, montré dans la barre latérale (jamais sur la vue). */
 function ZoomToast({ state }: { state: ShellState }) {
   const toast = state.zoomToast;
   const [visible, setVisible] = useState<number | null>(null);
   useEffect(() => {
-    if (!toast) return;
+    if (!toast || toast.sequence <= shownZoomSequence) return;
+    shownZoomSequence = toast.sequence;
     setVisible(toast.sequence);
     const timer = setTimeout(() => setVisible(null), 1600);
     return () => clearTimeout(timer);
@@ -87,38 +91,58 @@ function ZoomToast({ state }: { state: ShellState }) {
 function LockScreen({ state }: { state: ShellState }) {
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
+  // Annonce pour les lecteurs d'écran : une fois par essai, une fois à la fin du délai,
+  // jamais à chaque seconde du compte à rebours.
+  const [announce, setAnnounce] = useState("");
   const input = useRef<HTMLInputElement>(null);
   useNow(1000);
   const waitSeconds = state.lock.retryAt ? Math.max(0, Math.ceil((new Date(state.lock.retryAt).getTime() - Date.now()) / 1000)) : 0;
+  const waiting = waitSeconds > 0;
   // Chaque essai renvoie un nouvel état : la saisie redevient possible.
-  useEffect(() => setPending(false), [state.lock]);
-  useEffect(() => input.current?.focus(), [waitSeconds === 0]);
+  useEffect(() => {
+    setPending(false);
+    if (state.lock.failed) setAnnounce(waiting ? t("lock.wrongWait", { count: waitSeconds }) : t("lock.wrong"));
+  }, [state.lock]);
+  const [wasWaiting, setWasWaiting] = useState(false);
+  useEffect(() => {
+    if (waiting) setWasWaiting(true);
+    else if (wasWaiting) {
+      setWasWaiting(false);
+      setAnnounce(t("lock.ready"));
+      input.current?.focus();
+    }
+  }, [waiting]);
   const submit = () => {
-    if (!code || waitSeconds > 0 || pending) return;
+    if (!code || waiting || pending) return;
     setPending(true);
     api.command({ type: "unlock", code });
     setCode("");
   };
-  const press = (digit: string) => {
+  // Au pointeur, le champ reprend le focus ; au clavier, le focus reste sur le pavé.
+  const press = (digit: string, pointer: boolean) => {
+    if (waiting) return;
     setCode((current) => (current + digit).slice(0, 128));
-    input.current?.focus();
+    if (pointer) input.current?.focus();
   };
+  const status = waiting ? t(state.lock.failed ? "lock.wrongWait" : "lock.wait", { count: waitSeconds }) : state.lock.failed ? t("lock.wrong") : "";
   return (
     <main className="lock-screen">
       <form className="lock-panel" onSubmit={(event) => { event.preventDefault(); submit(); }}>
         <img src={logo} alt="" className="welcome-logo" />
         <h1>{t("lock.title", { product: state.productName })}</h1>
         <p>{t("lock.prompt")}</p>
-        <input ref={input} name="lock-code" className="input lock-input" type="password" inputMode="numeric" autoComplete="off" autoFocus aria-label={t("lock.code")}
-          aria-invalid={state.lock.failed} aria-describedby="lock-status" value={code} disabled={waitSeconds > 0} onChange={(event) => setCode(event.target.value)} />
-        <p id="lock-status" className={`lock-status${state.lock.failed ? " error" : ""}`} role="status">
-          {waitSeconds > 0 ? t("lock.wait", { count: waitSeconds }) : state.lock.failed ? t("lock.wrong") : " "}
-        </p>
+        <input ref={input} name="lock-code" className="input lock-input" type="password" inputMode="numeric" autoComplete="off" autoFocus maxLength={128} aria-label={t("lock.code")}
+          aria-invalid={state.lock.failed} aria-describedby="lock-status" readOnly={waiting} aria-disabled={waiting} value={code} onChange={(event) => setCode(event.target.value)} />
+        <p id="lock-status" className={`lock-status${state.lock.failed ? " error" : ""}`} aria-live="off">{status || "\u00a0"}</p>
+        <p className="sr-only" role="status">{announce}</p>
         <div className="keypad" role="group" aria-label={t("lock.keypad")}>
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => <button key={digit} type="button" className="btn" disabled={waitSeconds > 0} onClick={() => press(digit)}>{digit}</button>)}
-          <button type="button" className="btn" aria-label={t("lock.erase")} title={t("lock.erase")} disabled={waitSeconds > 0 || !code} onClick={() => setCode((current) => current.slice(0, -1))}><Icon name="collapse" /></button>
-          <button type="button" className="btn" disabled={waitSeconds > 0} onClick={() => press("0")}>0</button>
-          <button type="submit" className="btn btn-primary" aria-label={t("lock.unlock")} title={t("lock.unlock")} disabled={!code || waitSeconds > 0 || pending}><Icon name="check" /></button>
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
+            <button key={digit} type="button" className="btn" aria-disabled={waiting} onClick={(event) => press(digit, event.detail > 0)}>{digit}</button>
+          ))}
+          <button type="button" className="btn" aria-label={t("lock.erase")} title={t("lock.erase")} aria-disabled={waiting || !code}
+            onClick={() => !waiting && setCode((current) => current.slice(0, -1))}><Icon name="backspace" /></button>
+          <button type="button" className="btn" aria-disabled={waiting} onClick={(event) => press("0", event.detail > 0)}>0</button>
+          <button type="submit" className="btn btn-primary" aria-label={t("lock.unlock")} title={t("lock.unlock")} aria-disabled={!code || waiting || pending}><Icon name="check" /></button>
         </div>
         <button type="button" className="link-button" onClick={() => api.command({ type: "forgot-lock-code" })}>{t("lock.forgot")}</button>
       </form>
@@ -191,8 +215,9 @@ function Sidebar({ state, collapsed, autoCompact, onAdd, onNotices }: { state: S
       <div className="brand">
         <img src={logo} alt="" />
         <span className="brand-name">{state.productName}</span>
+        <span className="brand-actions">
         <button type="button" className={`icon-btn${state.veiled ? " pressed" : ""}`} aria-pressed={state.veiled}
-          title={`${state.veiled ? t("veil.untoggle") : t("veil.toggle")} (Ctrl+${t("keys.shift")}+H)`} aria-label={state.veiled ? t("veil.untoggle") : t("veil.toggle")}
+          title={`${state.veiled ? t("veil.untoggle") : t("veil.toggle")} (Ctrl+${t("keys.shift")}+H)`} aria-label={t("veil.toggle")}
           onClick={() => api.command({ type: "toggle-veil" })}>
           <Icon name={state.veiled ? "eye" : "eye-off"} />
         </button>
@@ -204,6 +229,7 @@ function Sidebar({ state, collapsed, autoCompact, onAdd, onNotices }: { state: S
           onClick={() => api.command({ type: "set-preferences", patch: { sidebarCollapsed: !collapsed } })}>
           <Icon name={collapsed ? "expand" : "collapse"} />
         </button>
+        </span>
       </div>
       <div className={`focus-control${activeFocus ? " active" : ""}`}>
         <button type="button" className={`focus-chip${activeFocus ? " active" : ""}`} title={focusLabel} aria-label={activeFocus ? focusLabel : t("shell.chooseFocus")}

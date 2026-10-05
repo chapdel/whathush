@@ -205,7 +205,9 @@ function installMainWorldHooks(bridgeName: string): void {
   const playing = new Set<HTMLMediaElement>();
   let lastPaused: HTMLMediaElement | null = null;
   let ourMetadata: MediaMetadata | null = null;
-  const isReading = (element: HTMLMediaElement): boolean => !element.loop && !(Number.isFinite(element.duration) && element.duration < 2.5);
+  // Ni sonnerie (en boucle), ni son court, ni flux d'appel (srcObject : caméra, correspondant).
+  const isReading = (element: HTMLMediaElement): boolean =>
+    !element.loop && element.srcObject === null && !(Number.isFinite(element.duration) && element.duration < 2.5);
   const kindOf = (element: HTMLMediaElement): "audio" | "video" => (element instanceof HTMLVideoElement && element.videoWidth > 0 ? "video" : "audio");
   const pageTitle = (): string | null => {
     try {
@@ -241,12 +243,13 @@ function installMainWorldHooks(bridgeName: string): void {
     // « playing » plutôt que « play » : la lecture a vraiment commencé, la durée est
     // connue (un son de notification court est alors reconnu).
     element.addEventListener("playing", () => {
+      if (!isReading(element)) return;
       playing.add(element);
       reportPlayback(element, "playing");
     });
     element.addEventListener("pause", () => {
       playing.delete(element);
-      if (element.ended) return;
+      if (element.ended || !isReading(element)) return;
       lastPaused = element;
       reportPlayback(element, "paused");
     });

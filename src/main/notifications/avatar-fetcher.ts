@@ -27,19 +27,20 @@ export class AvatarFetcher {
     const key = `${accountId}|${url}`;
     const cached = this.cache.get(key);
     if (cached !== undefined) return cached;
-    const image = await this.download(accountId, url);
-    this.cache.set(key, image);
+    const { image, definitive } = await this.download(accountId, url);
+    // Un délai dépassé ou une erreur réseau ne condamne pas la photo pour la session.
+    if (image || definitive) this.cache.set(key, image);
     return image;
   }
 
-  private async download(accountId: string, url: string): Promise<Buffer | null> {
+  private async download(accountId: string, url: string): Promise<{ image: Buffer | null; definitive: boolean }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), AVATAR_TIMEOUT_MS);
     try {
       const response = await this.deps.sessionFor(accountId).fetch(url, { signal: controller.signal, redirect: "error", credentials: "omit" });
       const type = (response.headers.get("content-type") ?? "").split(";")[0]?.trim() ?? "";
       const length = Number(response.headers.get("content-length") ?? "0");
-      if (!response.ok || !AVATAR_TYPES.test(type) || length > AVATAR_MAX_BYTES || !response.body) return null;
+      if (!response.ok || !AVATAR_TYPES.test(type) || length > AVATAR_MAX_BYTES || !response.body) return { image: null, definitive: response.status < 500 };
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
       let size = 0;
@@ -49,14 +50,14 @@ export class AvatarFetcher {
         size += value.byteLength;
         if (size > AVATAR_MAX_BYTES) {
           await reader.cancel();
-          return null;
+          return { image: null, definitive: true };
         }
         chunks.push(value);
       }
-      return Buffer.concat(chunks);
+      return { image: Buffer.concat(chunks), definitive: true };
     } catch (error) {
       this.deps.log.info("avatar-fetch-failed", { error: (error as Error).name });
-      return null;
+      return { image: null, definitive: false };
     } finally {
       clearTimeout(timer);
     }

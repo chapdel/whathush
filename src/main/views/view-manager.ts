@@ -233,7 +233,8 @@ export class ViewManager {
         if (this.views.get(accountId) === view && !view.webContents.isDestroyed()) return view.webContents.loadURL(url);
         return undefined;
       })
-      .catch((error: unknown) => this.deps.log.warn("load-url-failed", { accountId, error: String(error) }));
+      // Jamais l'adresse : un lien de conversation porte le numéro et le texte prérempli.
+      .catch((error: unknown) => this.deps.log.warn("load-url-failed", { accountId, code: (error as { code?: string }).code ?? "unknown" }));
   }
 
   reload(accountId: string): void {

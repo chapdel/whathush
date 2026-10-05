@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+// Identifiant de ce lancement : le nettoyage final ne touche qu'à ses propres dossiers.
+process.env.WHATHUSH_E2E_RUN ??= `${process.pid}-${Date.now()}`;
+
 // Opt-in : vraies fenêtres et tray du bureau courant, avec données et WhatsApp de test.
 export default defineConfig({
   testDir: "tests/desktop",

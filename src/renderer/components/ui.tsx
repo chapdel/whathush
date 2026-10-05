@@ -68,6 +68,7 @@ const paths: Record<string, ReactNode> = {
   check: <path d="M5 12l4 4L19 6" />,
   chevron: <path d="M6 9l6 6 6-6" />,
   play: <path d="M7 4l13 8-13 8z" />,
+  backspace: <><path d="M21 5H9l-6 7 6 7h12z" /><path d="M17 9l-6 6M11 9l6 6" /></>,
   pause: <path d="M7 4v16M17 4v16" />,
   lock: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   "eye-off": <><path d="M3 3l18 18M10.6 6.1A10 10 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-2.6 3.3M6.6 6.7C4.3 8.3 3 12 3 12s4 6 9 6a9 9 0 0 0 4.4-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2" /></>,

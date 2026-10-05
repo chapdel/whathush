@@ -47,6 +47,9 @@ export function systemInfo(extra: Record<string, string | number | boolean | nul
 }
 
 export function buildReport(input: ReportInput): string {
+  // Seuls le journal et les préférences peuvent contenir des données de l'utilisateur :
+  // eux seuls sont caviardés (les lignes écrites ici n'en contiennent pas).
+  const clean = (text: string) => redact(text, { labels: input.accounts.map((account) => account.label), home: os.homedir(), proxyHosts: input.proxyHosts, accountName: (n) => `Account ${n}` });
   const sections: ReportSection[] = [
     { title: "Versions", lines: [...Object.entries(input.versions), ["build", JSON.stringify(input.build)]] },
     { title: "System", lines: Object.entries(input.system) },
@@ -57,7 +60,7 @@ export function buildReport(input: ReportInput): string {
           `Account ${index + 1} : ${account.lifecycle}, mode ${account.mode}${account.sleeping ? ", sleeping" : ""}${account.inCall ? ", in call" : ""}${account.adapterDegraded ? ", adapter degraded" : ""}, memory ${account.memoryMB ?? "?"} MB, proxy ${account.proxy}`
       )
     },
-    { title: "Preferences (proxy and security omitted)", lines: Object.entries(input.preferences).map(([key, value]) => [key, JSON.stringify(value)] as [string, string]) }
+    { title: "Preferences (proxy and security omitted)", lines: Object.entries(input.preferences).map(([key, value]) => [key, clean(JSON.stringify(value))] as [string, string]) }
   ];
   let log = "";
   try {
@@ -65,9 +68,8 @@ export function buildReport(input: ReportInput): string {
   } catch {
     log = "";
   }
-  sections.push({ title: "Log (last 500 lines)", lines: tail(log, 500) });
-  const text = formatReport(`${input.product} diagnostic report — ${input.now.toISOString()}`, sections);
-  return redact(text, { labels: input.accounts.map((account) => account.label), home: os.homedir(), proxyHosts: input.proxyHosts, accountName: (n) => `Account ${n}` });
+  sections.push({ title: "Log (last 500 lines)", lines: tail(log, 500).map(clean) });
+  return formatReport(`${input.product} diagnostic report — ${input.now.toISOString()}`, sections);
 }
 
 /** Écrit le rapport sans jamais écraser un fichier ; renvoie son chemin. */

@@ -77,9 +77,9 @@ Données : `~/.config/mcdesk/` (dossier en 0700 ; `~/.config/mcdesk-demo/` pour 
 | Commande | Ce qu’elle vérifie |
 |---|---|
 | `npm run typecheck` | types de tout le projet |
-| `npm test` | 185 tests unitaires : politique, expiration Snooze/Focus, fuseaux, machine à états, gestionnaire de comptes, liens, stockage et migrations v1 → v2, menus, IPC, protocole `app://`, autostart ; catalogues de langue, raccourcis, lecture des médias, historique, autorisations, verrou, rapport, proxy et relais SOCKS5 (contre un faux proxy amont), photos, correcteur |
-| `npm run test:e2e` | 46 tests de bout en bout (Playwright pilote Electron, sans fenêtre, contre la fausse page), dont clavier, dialogues, resize, thèmes et HiDPI, interface en anglais, presse-papiers, lecture, zoom, téléchargements, rapport, verrou, voile, autorisations, proxy HTTP et SOCKS5, photos ; captures dans `test-results/screens/` |
-| `npm run test:native` | la règle de visibilité du §9, mesurée sans Playwright (Playwright émule le focus des pages et fausserait le résultat), y compris pendant le verrouillage |
+| `npm test` | 201 tests unitaires : politique, expiration Snooze/Focus, fuseaux, machine à états, gestionnaire de comptes, liens, stockage et migrations v1 → v2, menus, IPC, protocole `app://`, autostart ; catalogues de langue, raccourcis, lecture des médias, historique, autorisations, verrou, rapport, proxy et relais SOCKS5 (contre un faux proxy amont), identifiants chiffrés, voile, rapport caviardé, menu contextuel, menus du tray, photos, correcteur |
+| `npm run test:e2e` | 47 tests de bout en bout (Playwright pilote Electron, sans fenêtre, contre la fausse page), dont clavier, dialogues, resize, thèmes et HiDPI, interface en anglais, presse-papiers, lecture, zoom, téléchargements, rapport, verrou, voile, autorisations, proxy HTTP et SOCKS5, photos ; captures dans `test-results/screens/` |
+| `npm run test:native` | la règle de visibilité du §9, mesurée sans Playwright (Playwright émule le focus des pages et fausserait le résultat), y compris pendant le verrouillage, et le Snooze d’un son lancé par une page cachée |
 | `npm run build && ./node_modules/.bin/playwright test --config playwright.native.config.ts` | fenêtres et tray sur le bureau courant, backends Wayland et X11 selon la session disponible ; utilise des comptes locaux de test |
 | `cd lab && npm run smoke` | le Feasibility Lab (phase 0) |
 | `npm run icons` | régénère les icônes du tray avec nombre (ImageMagick) |

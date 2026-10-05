@@ -91,13 +91,15 @@ export interface AppOptions {
 export interface TestProbe {
   notifications: ShownNotification[];
   external: string[];
-  downloads: Array<{ accountId: string; file: string; state: string }>;
+  downloads: Array<{ accountId: string; file: string; state: string; title: string; body: string }>;
   visibility: Record<string, string>;
   env: Record<string, unknown>;
   /** F2, F3 : fichiers ouverts ou montrés dans leur dossier. */
   opened: Array<{ action: "open" | "show"; file: string }>;
   /** F6 : inactivité simulée du système, en secondes. */
   idleSeconds: number;
+  /** F14 : messages de lecture reçus des pages (barrière positive pour les tests). */
+  playbackReports: number;
 }
 
 const NETWORK_POLL_MS = 10_000;
@@ -139,6 +141,9 @@ export class Application {
   private zoomSequence = 0;
   private sharingScreen = false;
   private readonly proxyTests: SettingsState["proxyTests"] = {};
+  private lockCodeResult: SettingsState["security"]["lastCodeResult"] = null;
+  /** Dialogues natifs ouverts : refermés au verrouillage (F6). */
+  private readonly openDialogs = new Set<AbortController>();
   private readonly whatsappOrigin: string;
   private readonly userAgent = chromeUserAgent();
 
@@ -146,7 +151,7 @@ export class Application {
     this.store = options.store;
     this.log = options.log;
     this.whatsappOrigin = options.whatsappOrigin ?? WHATSAPP_ORIGIN;
-    this.probe = options.test ? { notifications: [], external: [], downloads: [], visibility: {}, env: {}, opened: [], idleSeconds: 0 } : null;
+    this.probe = options.test ? { notifications: [], external: [], downloads: [], visibility: {}, env: {}, opened: [], idleSeconds: 0, playbackReports: 0 } : null;
     this.applyLocale();
     for (const { key, params, ...notice } of this.store.notices) this.notices.push({ ...notice, message: t(key, params) });
 
@@ -155,7 +160,7 @@ export class Application {
       store: this.store,
       log: this.log,
       watchSession: !options.test,
-      ...(this.probe ? { idleSeconds: () => this.probe?.idleSeconds ?? 0 } : {})
+      ...(this.probe ? { idleSeconds: () => this.probe?.idleSeconds ?? 0, idlePollMs: 250 } : {})
     });
     this.accounts = new AccountManager({
       store: this.store,
@@ -217,7 +222,7 @@ export class Application {
       locked: () => this.lock.isLocked(),
       ...(this.probe
         ? {
-            sink: (event: { accountId: string; file: string; state: string }) => this.probe?.downloads.push(event),
+            sink: (event: { accountId: string; file: string; state: string; title: string; body: string }) => this.probe?.downloads.push(event),
             opened: (action: "open" | "show", file: string) => this.probe?.opened.push({ action, file })
           }
         : {})
@@ -292,6 +297,9 @@ export class Application {
     // F6 : verrouillé, aucune page WhatsApp n'est affichée (vues et popups), les paramètres
     // sont fermés et le clavier va à l'écran de verrouillage, jamais à une vue masquée.
     this.lock.on("locked", () => {
+      // Un dialogue ouvert avant (supprimer un compte, autoriser le micro…) ne doit ni
+      // rester affiché ni agir pendant le verrouillage.
+      for (const controller of this.openDialogs) controller.abort();
       this.accounts.setLocked(true);
       this.views.setPopupsHidden(true);
       if (this.settingsWindow && !this.settingsWindow.isDestroyed()) this.settingsWindow.close();
@@ -345,13 +353,29 @@ export class Application {
     this.log.info("locale", { locale: next, tag });
   }
 
+  /**
+   * Dialogue natif refermé si l'application se verrouille ; null s'il a été refermé ainsi,
+   * ou si l'application est verrouillée à son retour : la réponse est alors ignorée.
+   */
+  private async guardedDialog(parent: BrowserWindow, options: Electron.MessageBoxOptions): Promise<number | null> {
+    if (this.lock.isLocked()) return null;
+    const controller = new AbortController();
+    this.openDialogs.add(controller);
+    try {
+      const { response } = await dialog.showMessageBox(parent, { ...options, signal: controller.signal });
+      return controller.signal.aborted || this.lock.isLocked() ? null : response;
+    } finally {
+      this.openDialogs.delete(controller);
+    }
+  }
+
   /** §20 : sous X11, confirmation et choix de l'écran (sous Wayland, le portail l'a fait). */
   private async chooseScreen(accountId: string, sources: Electron.DesktopCapturerSource[]): Promise<Electron.DesktopCapturerSource | null> {
     const ozone = app.commandLine.getSwitchValue("ozone-platform");
     if (usesWaylandPortal(ozone) || this.options.test) return sources[0] ?? null;
     if (sources.length === 0) return null;
     const label = this.accounts.account(accountId)?.label ?? t("common.anAccount");
-    const { response } = await dialog.showMessageBox(this.mainWindow, {
+    const response = await this.guardedDialog(this.mainWindow, {
       type: "question",
       title: t("dialog.screenShareTitle"),
       message: t("dialog.screenShareMessage", { label }),
@@ -360,14 +384,14 @@ export class Application {
       defaultId: 0,
       cancelId: 0
     });
-    return response === 0 ? null : (sources[response - 1] ?? null);
+    return !response ? null : (sources[response - 1] ?? null);
   }
 
   /** F8 : « Demander » ; « Toujours pour ce compte » enregistre « Autoriser ». */
   private async askPermission(accountId: string, subject: PermissionSubject): Promise<"deny" | "once" | "always"> {
     const account = this.accounts.account(accountId);
     if (!account || this.lock.isLocked()) return "deny";
-    const { response } = await dialog.showMessageBox(this.mainWindow, {
+    const response = await this.guardedDialog(this.mainWindow, {
       type: "question",
       title: t("dialog.permissionTitle"),
       message: t("dialog.permissionMessage", { label: account.label, what: t(`permission.what.${subject}`) }),
@@ -622,6 +646,8 @@ export class Application {
       }
     });
     settings.webContents.on("render-process-gone", () => settings.webContents.reload());
+    // Au retour sur la fenêtre, l'état est relu (un fichier téléchargé a pu être déplacé, F2).
+    settings.on("focus", () => this.pushState());
     this.settingsWindow.on("closed", () => {
       this.settingsWindow = null;
     });
@@ -784,7 +810,8 @@ export class Application {
       security: {
         lock: { enabled: lock.enabled, onStart: lock.onStart, onHide: lock.onHide, idleMinutes: lock.idleMinutes, onScreenLock: lock.onScreenLock },
         secureStorage: this.proxy.secureStorage(),
-        proxyCredentials: { global: this.proxy.hasCredentials("global"), accounts: proxyAccounts }
+        proxyCredentials: { global: this.proxy.hasCredentials("global"), accounts: proxyAccounts },
+        lastCodeResult: this.lockCodeResult
       },
       proxyTests: { ...this.proxyTests }
     };
@@ -1003,6 +1030,7 @@ export class Application {
         return;
       case "set-lock-code": {
         const result = await this.lock.setCode(command.current, command.next);
+        this.lockCodeResult = { sequence: (this.lockCodeResult?.sequence ?? 0) + 1, result };
         const wasEnabled = command.current !== null;
         if (result === "ok") this.addNotice({ id: "lock", level: "info", message: t(wasEnabled ? "notice.lockCodeChanged" : "notice.lockEnabled") });
         else if (result === "wrong-current") this.addNotice({ id: "lock", level: "error", message: t("notice.lockWrongCurrent") });
@@ -1011,6 +1039,7 @@ export class Application {
       }
       case "disable-lock": {
         const result = await this.lock.disable(command.current);
+        this.lockCodeResult = { sequence: (this.lockCodeResult?.sequence ?? 0) + 1, result };
         this.addNotice(result === "ok" ? { id: "lock", level: "info", message: t("notice.lockDisabled") } : { id: "lock", level: "error", message: t("notice.lockWrongCurrent") });
         return;
       }
@@ -1130,7 +1159,9 @@ export class Application {
     const playback = this.playback.forAccount(accountId, Date.now());
     if (!playback) return;
     const page = allWebContents.fromId(playback.webContentsId);
-    if (page && !page.isDestroyed()) page.send(CHANNELS.waMediaControl, action);
+    if (!page || page.isDestroyed()) return;
+    if (action === "play") this.playback.markUserResume(playback.webContentsId);
+    page.send(CHANNELS.waMediaControl, action);
   }
 
   /** F3 : rapport écrit dans Téléchargements, puis dossier affiché ; rien n'est envoyé. */
@@ -1225,7 +1256,7 @@ export class Application {
     if (accountId && this.accounts.account(accountId)) {
       result = await this.proxy.test(accountId, this.options.targetUrl);
     } else {
-      result = { ok: false, route: "", error: t("accounts.empty") };
+      result = { ok: false, route: "", error: t("proxy.testNoAccount") };
     }
     this.proxyTests[scope] = result;
     this.pushState();
@@ -1301,7 +1332,7 @@ export class Application {
   private async confirmRemove(id: string, parent = this.mainWindow): Promise<void> {
     const account = this.accounts.account(id);
     if (!account) return;
-    const { response } = await dialog.showMessageBox(parent, {
+    const response = await this.guardedDialog(parent, {
       type: "warning",
       buttons: [t("common.cancel"), t("common.delete")],
       defaultId: 0,
@@ -1314,7 +1345,7 @@ export class Application {
   }
 
   private async confirmSettingsDelete(title: string, name: string, detail: string): Promise<boolean> {
-    const { response } = await dialog.showMessageBox(this.settingsWindow ?? this.mainWindow, {
+    const response = await this.guardedDialog(this.settingsWindow ?? this.mainWindow, {
       type: "warning", title, message: t("dialog.removeMessage", { name }), detail,
       buttons: [t("common.cancel"), t("common.delete")], defaultId: 0, cancelId: 0
     });
@@ -1401,6 +1432,7 @@ export class Application {
       const id = this.whatsappSender(event);
       const parsed = PlaybackPayloadSchema.safeParse(raw);
       if (!id || !parsed.success) return;
+      if (this.probe) this.probe.playbackReports += 1;
       const started = this.playback.report(id, event.sender.id, parsed.data, Date.now());
       if (started && this.store.get("preferences").exclusivePlayback) {
         for (const pageId of this.playback.playingPagesExcept(id)) allWebContents.fromId(pageId)?.send(CHANNELS.waMediaControl, "pause");
@@ -1454,5 +1486,10 @@ export class Application {
 
   viewsManager(): ViewManager {
     return this.views;
+  }
+
+  /** Modèle du menu du tray, tel qu'il serait affiché (tests et diagnostic). */
+  trayMenuModel(): MenuItemModel[] {
+    return trayMenu(this.shellState(), new Date());
   }
 }

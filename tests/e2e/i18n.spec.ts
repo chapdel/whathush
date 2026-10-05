@@ -83,12 +83,14 @@ test("langue (F12) : une installation neuve suit la langue du système, le fran�
       return (await waitForAccount(h.app, "Personal", (account) => account.lifecycle === "needs_qr")).id;
     })();
     await link(h, id, "Personal");
-    // Les menus natifs (modèle) suivent la langue.
-    const menu = await h.app.evaluate(() => {
-      const application = (globalThis as any).__whathush;
-      return JSON.stringify(application.shellState().accounts.map((account: any) => account.label));
-    });
-    expect(menu).toContain("Personal");
+    // Les menus natifs (modèle du tray) suivent la langue.
+    const labels = await h.app.evaluate(() =>
+      (globalThis as any).__whathush.trayMenuModel().map((item: any) => (item.kind === "separator" ? "—" : item.label))
+    );
+    expect(labels.slice(-2)).toEqual(["Show", "Quit"]);
+    expect(labels).toContain("Settings…");
+    expect(labels).toContain("Create a diagnostic report");
+    expect(labels.join("|")).not.toMatch(/Afficher|Paramètres|Quitter/);
   } finally {
     await h.close();
     h.stopFake();

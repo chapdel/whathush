@@ -21,7 +21,7 @@ const pluralRules = new Map<string, Intl.PluralRules>();
 /** Langue courante du processus (ou de la page) et étiquette BCP 47 pour Intl. */
 export function setLocale(locale: Locale, tag: string = DEFAULT_TAGS[locale]): void {
   current = locale;
-  currentTag = tag;
+  currentTag = cleanTag(tag) ?? DEFAULT_TAGS[locale];
 }
 
 export function locale(): Locale {
@@ -38,17 +38,27 @@ export function localeTag(): string {
  * (fr-CA, en-GB…) pour les dates et les nombres.
  */
 export function resolveLocale(preference: "system" | Locale, systemLanguages: readonly string[]): { locale: Locale; tag: string } {
-  const base = (tag: string) => tag.toLowerCase().split(/[-_]/)[0];
-  const tagFor = (target: Locale) => {
-    const match = systemLanguages.find((tag) => base(tag) === target);
-    return match ? match.replace("_", "-") : DEFAULT_TAGS[target];
-  };
-  if (preference !== "system") return { locale: preference, tag: tagFor(preference) };
+  const base = (tag: string) => tag.toLowerCase().split(/[-_.@]/)[0];
+  const tagFor = (target: Locale, tag: string | undefined) => (tag ? (cleanTag(tag) ?? DEFAULT_TAGS[target]) : DEFAULT_TAGS[target]);
+  if (preference !== "system") return { locale: preference, tag: tagFor(preference, systemLanguages.find((tag) => base(tag) === preference)) };
   for (const tag of systemLanguages) {
     const candidate = base(tag);
-    if (candidate === "fr" || candidate === "en") return { locale: candidate, tag: tag.replace("_", "-") };
+    if (candidate === "fr" || candidate === "en") return { locale: candidate, tag: tagFor(candidate, tag) };
   }
   return { locale: "en", tag: DEFAULT_TAGS.en };
+}
+
+/**
+ * Étiquette BCP 47 utilisable par Intl : « fr_FR.UTF-8 » → « fr-FR », « fr_FR@euro » →
+ * « fr-FR » (sinon Intl lève une RangeError et l'interface ne s'affiche plus).
+ */
+export function cleanTag(tag: string): string | null {
+  const stripped = tag.split(/[.@]/)[0]?.replace(/_/g, "-") ?? "";
+  try {
+    return Intl.getCanonicalLocales(stripped)[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function plural(count: number): Intl.LDMLPluralRule {

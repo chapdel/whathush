@@ -17,15 +17,24 @@ function escape(text: string): string {
 
 export function redact(text: string, input: RedactionInput): string {
   let result = text;
-  // Les noms les plus longs d'abord : « Équipe produit » avant « Équipe ».
+  // Noms de comptes en une seule passe (un remplacement n'est jamais relu), les plus longs
+  // d'abord (« Équipe produit » avant « Équipe »), et en mots entiers : un compte nommé
+  // « A » ne remplace pas chaque « a ».
   const labels = input.labels.map((label, index) => ({ label: label.trim(), index })).filter((entry) => entry.label.length > 0);
   labels.sort((a, b) => b.label.length - a.label.length);
-  for (const { label, index } of labels) result = result.replace(new RegExp(escape(label), "gi"), input.accountName(index + 1));
+  if (labels.length > 0) {
+    const byName = new Map(labels.map(({ label, index }) => [label.toLocaleLowerCase(), index]));
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${labels.map(({ label }) => escape(label)).join("|")})(?![\\p{L}\\p{N}])`, "giu");
+    result = result.replace(pattern, (match) => input.accountName((byName.get(match.toLocaleLowerCase()) ?? 0) + 1));
+  }
   if (input.home.length > 1) result = result.replace(new RegExp(escape(input.home), "g"), "~");
   for (const host of input.proxyHosts) if (host.trim()) result = result.replace(new RegExp(escape(host.trim()), "gi"), "[proxy]");
-  // Filets de sécurité : adresses électroniques et numéros de téléphone internationaux.
+  // Filets de sécurité : paramètres d'adresse (numéro et texte d'un lien de conversation),
+  // adresses électroniques, numéros de téléphone avec ou sans indicatif.
+  result = result.replace(/(\b[a-z][a-z0-9+.-]*:\/\/[^\s"'?#]*)[?#][^\s"']*/gi, "$1?[…]");
   result = result.replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[e-mail]");
   result = result.replace(/\+\d[\d\s]{7,16}\d/g, "[phone]");
+  result = result.replace(/(?<![\w.:-])\d{8,15}(?![\w.:-])/g, "[phone]");
   return result;
 }
 

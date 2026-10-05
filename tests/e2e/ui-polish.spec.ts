@@ -174,7 +174,7 @@ test("matrice visuelle : 1/2/5/10 comptes, états, tailles et thèmes", async ()
     for (const width of [760, 800, 1000, 1280]) {
       await h.app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows().find((window) => window.webContents.getURL().endsWith("settings.html"))!.setContentSize(w, 600), width);
       await expect.poll(() => settings.evaluate(() => innerWidth)).toBe(width);
-      for (const section of ["Général", "Apparence", "Comptes", "Horaires", "Focus", "Fichiers et liens", "À propos"]) {
+      for (const section of ["Général", "Apparence", "Comptes", "Horaires", "Focus", "Sécurité", "Fichiers et liens", "Téléchargements", "Réseau", "À propos"]) {
         await settings.getByRole("button", { name: section, exact: true }).click();
         await expect(settings.getByRole("heading", { name: section, exact: true })).toBeVisible();
         expect(await settings.locator(".settings-main").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);

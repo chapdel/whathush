@@ -51,6 +51,8 @@ export class LockService extends EventEmitter<{ changed: []; locked: [LockTrigge
       idleSeconds?: () => number;
       /** Écouter le verrouillage de session (désactivé en test). */
       watchSession: boolean;
+      /** Intervalle de mesure de l'inactivité (15 s ; plus court en test). */
+      idlePollMs?: number;
     }
   ) {
     super();
@@ -85,7 +87,7 @@ export class LockService extends EventEmitter<{ changed: []; locked: [LockTrigge
 
   start(): void {
     this.trigger("start");
-    this.idleTimer = setInterval(() => this.trigger("idle"), IDLE_POLL_MS);
+    this.idleTimer = setInterval(() => this.trigger("idle"), this.deps.idlePollMs ?? IDLE_POLL_MS);
     if (this.deps.watchSession) this.watchSession();
   }
 

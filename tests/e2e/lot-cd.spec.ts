@@ -29,6 +29,19 @@ test("proxy (F9) : HTTP authentifié pour un compte seulement, test de connexion
     await waitForAccount(app, "Travail", (account) => account.lifecycle === "ready");
     expect(proxy.refused).toBeGreaterThanOrEqual(1); // première requête sans identifiants, puis réponse 407
 
+    // Les appels du compte sous proxy ne le contournent pas ; l'autre compte est inchangé.
+    const policy = (id: string) => app.evaluate((_electron, accountId) => (globalThis as any).__whathush.viewsManager().webContents(accountId).getWebRTCIPHandlingPolicy(), id);
+    expect(await policy(travail)).toBe("disable_non_proxied_udp");
+    expect(await policy(personnel)).toBe("default");
+
+    // Revue : un lien vers ce compte endormi part par son proxy, jamais en direct.
+    await command(app, { type: "sleep-account", id: travail });
+    await waitForAccount(app, "Travail", (account) => account.lifecycle === "sleeping");
+    proxy.requests.length = 0;
+    await app.evaluate((_electron, input) => (globalThis as any).__whathush.accounts.openUrl(input.id, `${input.base}send?phone=33612345678&text=Bonjour`), { id: travail, base: h.fakeUrl });
+    await expect.poll(() => proxy.requests.some((url) => url.includes("/send?phone=33612345678"))).toBe(true);
+    await waitForAccount(app, "Travail", (account) => account.lifecycle === "ready");
+
     const seen = proxy.requests.length;
     await command(app, { type: "reload-account", id: personnel });
     await waitForAccount(app, "Personnel", (account) => account.lifecycle === "ready");

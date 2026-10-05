@@ -122,7 +122,9 @@ h1, h2, h3, strong { font-weight: 600; }
 .sidebar { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--sidebar); padding: var(--space-4) var(--space-3); gap: var(--space-3); }
 .brand { display: flex; align-items: center; gap: var(--space-3); min-height: var(--control-height); padding: 0 var(--space-3); }
 .brand img { width: 24px; height: 24px; flex: none; }
-.brand-name { font-weight: 600; font-size: var(--font-control); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; }
+.brand-name { font-weight: 600; font-size: var(--font-control); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand-actions { display: flex; gap: 2px; flex: none; }
+.shell.collapsed .brand-actions { flex-direction: column; }
 .focus-control { display: flex; align-items: center; min-width: 0; border-radius: var(--radius-sm); }
 .focus-control.active { background: var(--sidebar-active); }
 .focus-chip { display: flex; align-items: center; gap: var(--space-3); flex: 1; min-width: 0; min-height: var(--control-height); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); border: 0; background: transparent; color: var(--muted); font-size: var(--font-control); text-align: left; }
@@ -173,7 +175,7 @@ kbd { font: inherit; font-size: var(--font-meta); color: var(--muted); margin-le
 .notice-action { display: block; margin-top: var(--space-2); padding: var(--space-1) var(--space-3); border-radius: var(--radius-xs); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-weight: 500; font-size: var(--font-meta); }
 .notice-action:hover { background: var(--surface-2); }
 .notice-summary { align-self: center; }
-.shell.collapsed .brand-name, .shell.collapsed .account-text, .shell.collapsed .focus-chip span, .shell.collapsed .sidebar-footer .btn span, .shell.collapsed kbd { display: none; }
+.shell.collapsed .brand-name, .shell.collapsed .account-text, .shell.collapsed .focus-chip span, .shell.collapsed .sidebar-footer .btn span, .shell.collapsed .sidebar-footer kbd { display: none; }
 .shell.collapsed .brand, .shell.collapsed .account-switch, .shell.collapsed .focus-chip, .shell.collapsed .sidebar-footer .btn { justify-content: center; }
 .shell.collapsed .account-switch { padding: var(--space-3); }
 .shell.collapsed .brand { flex-direction: column; gap: var(--space-3); padding: 0; }
@@ -370,7 +372,7 @@ kbd { font: inherit; font-size: var(--font-meta); color: var(--muted); margin-le
 .entry-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
 .entry-text strong { font-weight: 500; font-size: var(--font-control); overflow-wrap: anywhere; }
 .entry-text small { color: var(--muted); font-size: var(--font-meta); }
-.entry-text small.warn { color: var(--warning); }
+.entry-text .warn { color: var(--warning); }
 .entry-actions { display: flex; gap: var(--space-1); flex: none; }
 .form-row { display: grid; grid-template-columns: 140px minmax(0, 1fr) 110px; gap: var(--space-3); align-items: end; }
 @media (max-width: 800px) { .form-row { grid-template-columns: minmax(0, 1fr); } }
@@ -383,3 +385,9 @@ kbd { font: inherit; font-size: var(--font-meta); color: var(--muted); margin-le
 .disclosure summary { color: var(--muted); font-size: var(--font-control); }
 .disclosure summary:hover { color: var(--text); }
 .disclosure[open] > .form-grid { padding-top: var(--space-4); }
+
+/* Texte réservé aux lecteurs d'écran. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* aria-disabled : même apparence que disabled, sans perdre le focus. */
+.btn[aria-disabled="true"], .icon-btn[aria-disabled="true"], .input[aria-disabled="true"] { opacity: .45; }
+.nav-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

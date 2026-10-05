@@ -125,15 +125,21 @@ export function applySpellcheck(ses: Session, plan: SpellcheckPlan): void {
 export function installBundledDictionaries(sourceDir: string, targetDir: string, log: Logger): void {
   try {
     fs.mkdirSync(targetDir, { recursive: true, mode: 0o700 });
-    for (const file of Object.values(BUNDLED_DICTIONARIES)) {
+  } catch (error) {
+    log.warn("dictionary-install-failed", { error: String(error) });
+    return;
+  }
+  // Un fichier à la fois : l'échec de l'un n'empêche pas les autres langues.
+  for (const file of Object.values(BUNDLED_DICTIONARIES)) {
+    try {
       const source = path.join(sourceDir, file);
       const target = path.join(targetDir, file);
       const size = fs.statSync(source).size;
       if (fs.existsSync(target) && fs.statSync(target).size === size) continue;
       fs.copyFileSync(source, target);
       log.info("dictionary-installed", { file });
+    } catch (error) {
+      log.warn("dictionary-install-failed", { file, error: String(error) });
     }
-  } catch (error) {
-    log.warn("dictionary-install-failed", { error: String(error) });
   }
 }

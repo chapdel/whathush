@@ -26,7 +26,7 @@ export interface DownloadDeps {
   /** F6 : verrouillé, la notification ne nomme ni le compte ni le fichier. */
   locked(): boolean;
   /** Mode test : enregistre au lieu de notifier et d'ouvrir. */
-  sink?: (event: { accountId: string; file: string; state: string }) => void;
+  sink?: (event: { accountId: string; file: string; state: string; title: string; body: string }) => void;
   opened?: (action: "open" | "show", file: string) => void;
 }
 
@@ -104,17 +104,16 @@ export class DownloadManager extends EventEmitter<{ changed: [] }> {
       };
       this.save((records) => records.map((candidate) => (candidate.id === record.id ? finished : candidate)));
       this.deps.log.info("download-done", { accountId, state });
+      // Verrouillé (F6) : ni le compte ni le nom du fichier.
+      const locked = this.deps.locked();
+      const title = locked ? t("download.doneTitleLocked") : t("download.doneTitle", { label: this.deps.accountLabel(accountId) });
+      const body = locked ? t("download.doneBodyLocked") : t("download.doneBody", { file: path.basename(savePath) });
       if (this.deps.sink) {
-        this.deps.sink({ accountId, file: savePath, state });
+        this.deps.sink({ accountId, file: savePath, state, title, body });
         return;
       }
       if (state !== "completed" || !Notification.isSupported()) return;
-      const locked = this.deps.locked();
-      const notification = new Notification({
-        title: locked ? t("download.doneTitleLocked") : t("download.doneTitle", { label: this.deps.accountLabel(accountId) }),
-        body: locked ? t("download.doneBodyLocked") : t("download.doneBody", { file: path.basename(savePath) }),
-        silent: true
-      });
+      const notification = new Notification({ title, body, silent: true });
       notification.on("click", () => {
         if (!this.deps.locked()) shell.showItemInFolder(savePath);
       });

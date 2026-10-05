@@ -265,10 +265,12 @@ function ProxyServerForm({ state, scope, server, onApply }: { state: SettingsSta
       {draft.host !== "" && !valid && <p className="hint status-error">{t("proxy.invalid")}</p>}
       <div className="button-row">
         <button type="button" className="btn btn-primary" disabled={!valid || !dirty} onClick={() => onApply({ ...draft, host: draft.host.trim() })}>{t("proxy.apply")}</button>
-        <button type="button" className="btn" disabled={!applied || test?.running} onClick={() => api.command({ type: "test-proxy", scope })}>{test?.running ? t("proxy.testing") : t("proxy.test")}</button>
-        {test && !test.running && (
-          <span className={`hint ${test.ok ? "status-ok" : "status-error"}`} role="status">{test.ok ? t("proxy.testOk", { route: test.route }) : t("proxy.testFailed", { error: test.error ?? "" })}</span>
-        )}
+        <button type="button" className="btn" aria-disabled={!applied || Boolean(test?.running)}
+          onClick={() => applied && !test?.running && api.command({ type: "test-proxy", scope })}>{test?.running ? t("proxy.testing") : t("proxy.test")}</button>
+        {/* Toujours présente : seul son texte change, ce qui est annoncé. */}
+        <span className={`hint ${test && !test.running ? (test.ok ? "status-ok" : "status-error") : ""}`} role="status">
+          {test && !test.running ? (test.ok ? t("proxy.testOk", { route: test.route }) : t("proxy.testFailed", { error: test.error ?? "" })) : ""}
+        </span>
       </div>
       {draft.auth && (
         <>
@@ -276,13 +278,14 @@ function ProxyServerForm({ state, scope, server, onApply }: { state: SettingsSta
           <div className="form-row credentials">
             <label className="field">
               <span>{t("proxy.username")}</span>
-              <input className="input" name="proxy-username" autoComplete="off" spellCheck={false} value={username} onChange={(event) => setUsername(event.target.value)} />
+              <input className="input" name="proxy-username" autoComplete="off" spellCheck={false} maxLength={255} value={username} onChange={(event) => setUsername(event.target.value)} />
             </label>
             <label className="field">
               <span>{t("proxy.password")}</span>
-              <input className="input" name="proxy-password" type="password" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} />
+              <input className="input" name="proxy-password" type="password" autoComplete="off" maxLength={255} value={password} onChange={(event) => setPassword(event.target.value)} />
             </label>
-            <button type="button" className="btn" disabled={!username || !password} onClick={() => {
+            <button type="button" className="btn" aria-disabled={!username || !password} onClick={() => {
+              if (!username || !password) return;
               api.command({ type: "set-proxy-credentials", scope, username, password });
               setPassword("");
             }}>{t("proxy.saveCredentials")}</button>
@@ -445,7 +448,7 @@ function AccountEditor({ account, state }: { account: AccountConfig; state: Sett
             ))}
           </select>
         </Row>
-        <Row title={t("account.autoSleep")} detail={memory ? t("account.memory", { mb: memory }) : t("account.neverInCall")}>
+        <Row title={t("account.autoSleep")} detail={memory ? t("account.memory", { mb: formatNumber(memory) }) : t("account.neverInCall")}>
           <select name="setting"
             className="select"
             value={account.autoSleepAfterMinutes ? String(account.autoSleepAfterMinutes) : ""}
@@ -829,9 +832,18 @@ function DownloadsSection({ state }: { state: SettingsState }) {
                     <small>{t("downloads.meta", { account: entry.accountLabel, size: formatBytes(entry.bytes), date })} · <span className={status.warn ? "warn" : undefined}>{status.text}</span></small>
                   </span>
                   <span className="entry-actions">
-                    {entry.state === "completed" && !entry.missing && <button type="button" className="btn btn-small" onClick={() => api.command({ type: "download-open", id: entry.id })}>{t("downloads.open")}</button>}
-                    <button type="button" className="icon-btn" aria-label={`${t("downloads.showInFolder")} : ${entry.fileName}`} title={t("downloads.showInFolder")} onClick={() => api.command({ type: "download-show", id: entry.id })}><Icon name="folder" /></button>
-                    <button type="button" className="icon-btn" aria-label={`${t("downloads.remove")} : ${entry.fileName}`} title={t("downloads.remove")} onClick={() => api.command({ type: "download-remove", id: entry.id })}><Icon name="close" /></button>
+                    {entry.state === "completed" && !entry.missing && (
+                      <button type="button" className="btn btn-small" aria-label={t("common.actionOn", { action: t("downloads.open"), target: entry.fileName })} onClick={() => api.command({ type: "download-open", id: entry.id })}>{t("downloads.open")}</button>
+                    )}
+                    <button type="button" className="icon-btn" aria-label={t("common.actionOn", { action: t("downloads.showInFolder"), target: entry.fileName })} title={t("downloads.showInFolder")} onClick={() => api.command({ type: "download-show", id: entry.id })}><Icon name="folder" /></button>
+                    <button type="button" className="icon-btn" aria-label={t("common.actionOn", { action: t("downloads.remove"), target: entry.fileName })} title={t("downloads.remove")}
+                      onClick={(event) => {
+                        // Le focus passe à l'entrée voisine plutôt que de se perdre.
+                        const item = event.currentTarget.closest("li");
+                        const neighbour = (item?.nextElementSibling ?? item?.previousElementSibling)?.querySelector<HTMLButtonElement>(".icon-btn");
+                        api.command({ type: "download-remove", id: entry.id });
+                        neighbour?.focus();
+                      }}><Icon name="close" /></button>
                   </span>
                 </li>
               );
@@ -848,48 +860,64 @@ function DownloadsSection({ state }: { state: SettingsState }) {
 
 // --- Sécurité (F6, F7) ---------------------------------------------------------------------
 
-function LockCodeForm({ enabled }: { enabled: boolean }) {
+function LockCodeForm({ enabled, lastResult }: { enabled: boolean; lastResult: SettingsState["security"]["lastCodeResult"] }) {
+  const ids = { hint: useId(), mismatch: useId(), current: useId() };
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [waitingFor, setWaitingFor] = useState<number | null>(null);
+  const [wrongCurrent, setWrongCurrent] = useState(false);
   const tooShort = next.length > 0 && next.length < 4;
   const mismatch = confirm.length > 0 && next !== confirm;
   const ready = next.length >= 4 && next === confirm && (!enabled || current.length > 0);
-  const reset = () => {
-    setCurrent("");
-    setNext("");
-    setConfirm("");
+  // Les champs restent remplis jusqu'au résultat : un code actuel faux ne fait pas retaper le nouveau.
+  useEffect(() => {
+    if (!lastResult || lastResult.sequence !== waitingFor) return;
+    setWaitingFor(null);
+    if (lastResult.result === "ok") {
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setWrongCurrent(false);
+    } else if (lastResult.result === "wrong-current") {
+      setCurrent("");
+      setWrongCurrent(true);
+    }
+  }, [lastResult?.sequence]);
+  const send = (command: () => void) => {
+    setWaitingFor((lastResult?.sequence ?? 0) + 1);
+    setWrongCurrent(false);
+    command();
   };
   return (
     <form className="form-grid" onSubmit={(event) => {
       event.preventDefault();
-      if (!ready) return;
-      api.command({ type: "set-lock-code", current: enabled ? current : null, next });
-      reset();
+      if (ready) send(() => api.command({ type: "set-lock-code", current: enabled ? current : null, next }));
     }}>
       {enabled && (
-        <label className="field">
-          <span>{t("lock.currentCode")}</span>
-          <input className="input" name="lock-current" type="password" autoComplete="off" value={current} onChange={(event) => setCurrent(event.target.value)} />
-        </label>
+        <div className="field">
+          <label htmlFor={ids.current}>{t("lock.currentCode")}</label>
+          <input id={ids.current} className="input" name="lock-current" type="password" autoComplete="off" maxLength={128} aria-invalid={wrongCurrent}
+            aria-describedby={wrongCurrent ? `${ids.current}-error` : undefined} value={current} onChange={(event) => setCurrent(event.target.value)} />
+          {wrongCurrent && <small className="hint status-error" id={`${ids.current}-error`} role="alert">{t("notice.lockWrongCurrent")}</small>}
+        </div>
       )}
-      <label className="field">
-        <span>{t("lock.newCode")}</span>
-        <input className="input" name="lock-new" type="password" autoComplete="new-password" aria-invalid={tooShort} value={next} onChange={(event) => setNext(event.target.value)} />
-        <small className="hint">{tooShort ? t("lock.tooShort") : t("lock.codeHint")}</small>
-      </label>
-      <label className="field">
-        <span>{t("lock.confirmCode")}</span>
-        <input className="input" name="lock-confirm" type="password" autoComplete="new-password" aria-invalid={mismatch} value={confirm} onChange={(event) => setConfirm(event.target.value)} />
-        {mismatch && <small className="hint status-error">{t("lock.mismatch")}</small>}
-      </label>
+      <div className="field">
+        <label htmlFor={`${ids.hint}-input`}>{t("lock.newCode")}</label>
+        <input id={`${ids.hint}-input`} className="input" name="lock-new" type="password" autoComplete="new-password" maxLength={128} aria-invalid={tooShort} aria-describedby={ids.hint}
+          value={next} onChange={(event) => setNext(event.target.value)} />
+        <small className="hint" id={ids.hint} aria-live="polite">{tooShort ? t("lock.tooShort") : t("lock.codeHint")}</small>
+      </div>
+      <div className="field">
+        <label htmlFor={`${ids.mismatch}-input`}>{t("lock.confirmCode")}</label>
+        <input id={`${ids.mismatch}-input`} className="input" name="lock-confirm" type="password" autoComplete="new-password" maxLength={128} aria-invalid={mismatch}
+          aria-describedby={mismatch ? ids.mismatch : undefined} value={confirm} onChange={(event) => setConfirm(event.target.value)} />
+        {mismatch && <small className="hint status-error" id={ids.mismatch} role="alert">{t("lock.mismatch")}</small>}
+      </div>
       <div className="button-row">
         <button type="submit" className="btn btn-primary" disabled={!ready}>{enabled ? t("lock.changeCode") : t("lock.setCode")}</button>
         {enabled && (
-          <button type="button" className="btn btn-danger" disabled={!current} onClick={() => {
-            api.command({ type: "disable-lock", current });
-            reset();
-          }}>{t("lock.disable")}</button>
+          <button type="button" className="btn btn-danger" aria-disabled={!current} onClick={() => current && send(() => api.command({ type: "disable-lock", current }))}>{t("lock.disable")}</button>
         )}
       </div>
     </form>
@@ -908,7 +936,7 @@ function SecuritySection({ state }: { state: SettingsState }) {
       <div className="section-label">{t("lock.section")}</div>
       <div className="settings-group">
         <p className="callout">{t("lock.what")}</p>
-        {!lock.enabled && <LockCodeForm key="new" enabled={false} />}
+        {!lock.enabled && <LockCodeForm key="new" enabled={false} lastResult={state.security.lastCodeResult} />}
         {lock.enabled && (
           <>
             <Row title={t("lock.onStart")}>
@@ -931,7 +959,7 @@ function SecuritySection({ state }: { state: SettingsState }) {
             </div>
             <details className="disclosure">
               <summary>{t("lock.changeCode")} · {t("lock.disable")}</summary>
-              <LockCodeForm key="change" enabled={true} />
+              <LockCodeForm key="change" enabled={true} lastResult={state.security.lastCodeResult} />
             </details>
           </>
         )}
@@ -1045,7 +1073,7 @@ function SettingsApp() {
         {SECTIONS.map((item) => (
           <button type="button" key={item.id} className={`nav-item${section === item.id ? " active" : ""}`} onClick={() => setSection(item.id)} aria-current={section === item.id ? "page" : undefined}>
             <Icon name={item.icon} />
-            {t(`section.${item.id}`)}
+            <span className="nav-item-label">{t(`section.${item.id}`)}</span>
           </button>
         ))}
       </nav>

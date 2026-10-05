@@ -17,7 +17,11 @@ export function failureDelayMs(failures: number): number {
 /** Instant à partir duquel un nouvel essai est permis ; null si tout de suite. */
 export function retryAt(failures: { count: number; lastAt: string | null }, now: Date): Date | null {
   if (failures.count <= 0 || !failures.lastAt) return null;
-  const at = new Date(new Date(failures.lastAt).getTime() + failureDelayMs(failures.count));
+  const last = new Date(failures.lastAt).getTime();
+  // Échec daté du futur : l'horloge est revenue en arrière (pile, machine hors ligne).
+  // On ne peut rien en déduire ; sans cela, l'attente durerait jusqu'à cette date.
+  if (last > now.getTime()) return null;
+  const at = new Date(last + failureDelayMs(failures.count));
   return at.getTime() > now.getTime() ? at : null;
 }
 

@@ -74,6 +74,16 @@ describe("resolveLocale()", () => {
     expect(resolveLocale("system", [])).toEqual({ locale: "en", tag: "en-US" });
   });
 
+  it("nettoie les langues système à modificateur ou encodage (sinon Intl lève une erreur)", () => {
+    // Revue : LANG=fr_FR@euro → ["fr-FR@euro", …] ; Intl.PluralRules("fr-FR@euro") lève RangeError.
+    expect(resolveLocale("system", ["fr-FR@euro", "fr@euro", "fr-FR", "fr"])).toEqual({ locale: "fr", tag: "fr-FR" });
+    expect(resolveLocale("system", ["en_GB.UTF-8"])).toEqual({ locale: "en", tag: "en-GB" });
+    expect(resolveLocale("fr", ["fr_CA.UTF-8@euro"])).toEqual({ locale: "fr", tag: "fr-CA" });
+    setLocale("fr", "fr-FR@euro");
+    expect(t("shell.unreadSuffix", { count: 2 })).toBe(", 2 non lus");
+    expect(formatBytes(2048)).toBe("2 Ko");
+  });
+
   it("respecte un choix explicite et garde la variante régionale du système", () => {
     expect(resolveLocale("fr", ["en-US", "fr-BE"])).toEqual({ locale: "fr", tag: "fr-BE" });
     expect(resolveLocale("en", ["fr-FR"])).toEqual({ locale: "en", tag: "en-US" });

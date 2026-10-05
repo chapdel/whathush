@@ -33,31 +33,50 @@ export interface AccountPlayback {
 
 /** Une lecture en pause reste proposée (« Reprendre ») pendant 5 minutes. */
 export const PAUSED_VISIBLE_MS = 5 * 60_000;
+/** Le message vocal suivant, enchaîné par WhatsApp, garde l'origine du précédent. */
+export const CHAIN_MS = 3000;
 
 export class PlaybackTracker {
   private readonly pages = new Map<number, PageEntry>();
+  /** Fin récente d'une lecture lancée par l'utilisateur, par page. */
+  private readonly userEnded = new Map<number, number>();
+  /** « Reprendre » commandé depuis l'application : la prochaine lecture vient de l'utilisateur. */
+  private readonly userResumed = new Set<number>();
 
   /** Renvoie true si une nouvelle lecture démarre (pour « une seule lecture à la fois »). */
   report(accountId: string, webContentsId: number, report: PlaybackReport, now: number): boolean {
     const previous = this.pages.get(webContentsId);
     if (report.state === "ended") {
+      if (previous?.startedVisible) this.userEnded.set(webContentsId, now);
       this.pages.delete(webContentsId);
       return false;
     }
     const started = report.state === "playing" && previous?.state !== "playing";
+    const chained = (this.userEnded.get(webContentsId) ?? -Infinity) >= now - CHAIN_MS;
+    const resumed = started && this.userResumed.delete(webContentsId);
+    this.userEnded.delete(webContentsId);
+    // L'origine d'une lecture se garde tant qu'elle existe (pause, reprise, mise en
+    // mémoire tampon) : une page cachée ne la perd pas en rapportant « hidden ».
+    const userStarted = Boolean(previous?.startedVisible) || resumed || chained || (started && report.startedVisible) || (!previous && report.startedVisible);
     this.pages.set(webContentsId, {
       ...report,
       accountId,
       webContentsId,
       startedAt: started ? now : (previous?.startedAt ?? now),
-      // Une reprise après pause garde l'origine de la lecture.
-      startedVisible: started && previous?.state === "paused" ? previous.startedVisible || report.startedVisible : report.startedVisible,
+      startedVisible: userStarted,
       updatedAt: now
     });
     return started;
   }
 
+  /** L'utilisateur a demandé « Reprendre » pour cette page (barre latérale ou tray). */
+  markUserResume(webContentsId: number): void {
+    this.userResumed.add(webContentsId);
+  }
+
   pageGone(webContentsId: number): boolean {
+    this.userEnded.delete(webContentsId);
+    this.userResumed.delete(webContentsId);
     return this.pages.delete(webContentsId);
   }
 
