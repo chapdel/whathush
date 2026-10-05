@@ -4,14 +4,14 @@
 # for the release's Git tag in the Flathub repository.
 #
 #   flatpak run --no-documents-portal org.flatpak.Builder --user --install-deps-from=flathub \
-#     --force-clean --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.mcdesk.yml
+#     --force-clean --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.whathush.yml
 
-app-id: io.github.chapdel.mcdesk
+app-id: io.github.chapdel.whathush
 runtime: org.freedesktop.Platform
-runtime-version: '25.08'
+runtime-version: '26.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
-base-version: '25.08'
+base-version: '26.08'
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node22
 command: whathush
@@ -29,10 +29,9 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   # Tray icon (StatusNotifierItem).
   - --talk-name=org.kde.StatusNotifierWatcher
-  # Lock together with the desktop session: screensaver and logind, listen only.
+  # Lock together with the desktop session: screensaver signals, listen only.
   - --talk-name=org.freedesktop.ScreenSaver
   - --talk-name=org.gnome.ScreenSaver
-  - --system-talk-name=org.freedesktop.login1
   # Encrypted proxy credentials: system keyring through Electron safeStorage.
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.kde.kwalletd6
@@ -62,11 +61,11 @@ modules:
           -c.electronDist=flatpak-node/cache/electron
       - cp -a release/linux*unpacked /app/whathush
       - install -Dm755 whathush.sh /app/bin/whathush
-      - install -Dm644 packaging/linux/io.github.chapdel.mcdesk.desktop /app/share/applications/io.github.chapdel.mcdesk.desktop
-      - install -Dm644 packaging/linux/io.github.chapdel.mcdesk.metainfo.xml /app/share/metainfo/io.github.chapdel.mcdesk.metainfo.xml
+      - install -Dm644 packaging/linux/io.github.chapdel.whathush.desktop /app/share/applications/io.github.chapdel.whathush.desktop
+      - install -Dm644 packaging/linux/io.github.chapdel.whathush.metainfo.xml /app/share/metainfo/io.github.chapdel.whathush.metainfo.xml
       - |
         for size in 128 256 512; do
-          install -Dm644 build/icons/${size}x${size}.png /app/share/icons/hicolor/${size}x${size}/apps/io.github.chapdel.mcdesk.png
+          install -Dm644 build/icons/${size}x${size}.png /app/share/icons/hicolor/${size}x${size}/apps/io.github.chapdel.whathush.png
         done
     sources:
       # Local source (replaced for Flathub): this repository, minus build outputs.

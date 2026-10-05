@@ -53,6 +53,8 @@ export class LockService extends EventEmitter<{ changed: []; locked: [LockTrigge
       watchSession: boolean;
       /** Intervalle de mesure de l'inactivité (15 s ; plus court en test). */
       idlePollMs?: number;
+      /** Sortie du processus (injectable pour les tests). */
+      onProcessExit?: (listener: () => void) => void;
     }
   ) {
     super();
@@ -88,7 +90,13 @@ export class LockService extends EventEmitter<{ changed: []; locked: [LockTrigge
   start(): void {
     this.trigger("start");
     this.idleTimer = setInterval(() => this.trigger("idle"), this.deps.idlePollMs ?? IDLE_POLL_MS);
-    if (this.deps.watchSession) this.watchSession();
+    if (this.deps.watchSession) {
+      this.watchSession();
+      // app.exit() (auto-test) et process.exit() ne passent pas par before-quit : sans
+      // cela, les gdbus monitor survivraient à l'application, et garderaient ouvert le
+      // bac à sable Flatpak.
+      (this.deps.onProcessExit ?? ((listener) => process.once("exit", listener)))(() => this.stop());
+    }
   }
 
   stop(): void {

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Métadonnées AppStream (Flathub, logithèques) : anglais par défaut, français par xml:lang. -->
 <component type="desktop-application">
-  <id>io.github.chapdel.mcdesk</id>
+  <id>io.github.chapdel.whathush</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>WhatHush</name>
@@ -41,7 +41,7 @@
       Projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms.
     </p>
   </description>
-  <launchable type="desktop-id">io.github.chapdel.mcdesk.desktop</launchable>
+  <launchable type="desktop-id">io.github.chapdel.whathush.desktop</launchable>
   <screenshots>
     <screenshot type="default">
       <caption>Several accounts side by side, with Snooze and deep sleep</caption>

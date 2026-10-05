@@ -38,7 +38,7 @@
   },
   "productName": "WhatHush",
   "main": "dist/main/index.cjs",
-  "desktopName": "io.github.chapdel.mcdesk.desktop",
+  "desktopName": "io.github.chapdel.whathush.desktop",
   "homepage": "https://github.com/chapdel/whathush",
   "license": "GPL-3.0-or-later",
   "author": {

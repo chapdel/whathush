@@ -3,7 +3,7 @@
 # dont la source locale devient le tag Git publié (avec son commit), les sources npm
 # et flathub.json. Usage : packaging/flatpak/prepare-flathub.sh <dossier>
 #   Première soumission : PR vers la branche new-pr de github.com/flathub/flathub.
-#   Ensuite : commit dans github.com/flathub/io.github.chapdel.mcdesk.
+#   Ensuite : commit dans github.com/flathub/io.github.chapdel.whathush.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -13,7 +13,7 @@ commit=$(git -C "$root" rev-parse "v$version^{commit}" 2>/dev/null) || { echo "t
 git -C "$root" ls-remote --exit-code --tags origin "v$version" >/dev/null || { echo "tag v$version absent de GitHub : git push origin v$version" >&2; exit 1; }
 
 mkdir -p "$target"
-python3 - "$root/packaging/flatpak/io.github.chapdel.mcdesk.yml" "$target/io.github.chapdel.mcdesk.yml" "$version" "$commit" <<'PY'
+python3 - "$root/packaging/flatpak/io.github.chapdel.whathush.yml" "$target/io.github.chapdel.whathush.yml" "$version" "$commit" <<'PY'
 import re, sys
 source, output, version, commit = sys.argv[1:]
 manifest = open(source, encoding="utf-8").read()

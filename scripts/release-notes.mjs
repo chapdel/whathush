@@ -8,7 +8,7 @@ if (!version) {
   console.error("usage : node scripts/release-notes.mjs <version>");
   process.exit(2);
 }
-const xml = fs.readFileSync(new URL("../packaging/linux/io.github.chapdel.mcdesk.metainfo.xml", import.meta.url), "utf8");
+const xml = fs.readFileSync(new URL("../packaging/linux/io.github.chapdel.whathush.metainfo.xml", import.meta.url), "utf8");
 const release = xml.match(new RegExp(`<release version="${version.replaceAll(".", "\\.")}"[^>]*>([\\s\\S]*?)</release>`));
 if (!release) {
   console.error(`version ${version} absente des métadonnées AppStream : ajoutez son <release>`);

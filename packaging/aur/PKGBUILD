@@ -4,7 +4,7 @@
 # Après chaque release publiée : packaging/aur/update.sh <clone AUR> (sommes et .SRCINFO).
 
 pkgname=whathush-bin
-_appid=io.github.chapdel.mcdesk
+_appid=io.github.chapdel.whathush
 pkgver=0.2.0
 pkgrel=1
 pkgdesc="Several WhatsApp Web accounts side by side, with Snooze, Focus and deep sleep (not affiliated with WhatsApp or Meta)"

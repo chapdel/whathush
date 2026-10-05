@@ -7,7 +7,7 @@ cd "$(dirname "$0")/../.."
 
 "${FLATPAK_NODE_GENERATOR:-flatpak-node-generator}" npm package-lock.json \
   -o packaging/flatpak/generated-sources.json \
-  --node-sdk-extension org.freedesktop.Sdk.Extension.node22//25.08
+  --node-sdk-extension org.freedesktop.Sdk.Extension.node22//26.08
 
 # Les navigateurs de Playwright ne servent qu'aux tests, et aucune dépendance ne les
 # télécharge à l'installation : inutile de les faire télécharger au build Flathub.

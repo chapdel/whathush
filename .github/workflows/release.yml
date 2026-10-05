@@ -44,6 +44,18 @@ jobs:
       - run: npx electron-builder --linux AppImage deb rpm tar.gz --publish never
       - name: Auto-test du binaire empaqueté
         run: WHATHUSH_USER_DATA="$(mktemp -d)" ./release/linux-unpacked/whathush --self-test --ozone-platform=headless
+      # Les paquets eux-mêmes, installés dans une distribution propre, puis lancés.
+      - name: .deb installé dans Ubuntu 24.04
+        run: |
+          docker run --rm -v "$PWD/release":/release:ro ubuntu:24.04 bash -c '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq && apt-get install -y -qq /release/*.deb >/dev/null
+            WHATHUSH_USER_DATA=$(mktemp -d) whathush --self-test --no-sandbox --ozone-platform=headless'
+      - name: .rpm installé dans Fedora 44
+        run: |
+          docker run --rm -v "$PWD/release":/release:ro registry.fedoraproject.org/fedora:44 bash -c '
+            dnf install -y -q /release/*.rpm >/dev/null
+            WHATHUSH_USER_DATA=$(mktemp -d) whathush --self-test --no-sandbox --ozone-platform=headless'
       - name: Sommes SHA-256
         working-directory: release
         run: sha256sum *.AppImage *.deb *.rpm *.tar.gz > SHA256SUMS

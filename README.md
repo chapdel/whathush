@@ -49,7 +49,7 @@ sudo dnf install ./whathush-0.2.0.x86_64.rpm
 yay -S whathush-bin
 ```
 
-Flathub (`flatpak install flathub io.github.chapdel.mcdesk`) will follow once the submission is accepted.
+Flathub (`flatpak install flathub io.github.chapdel.whathush`) will follow once the submission is accepted.
 
 On first launch, add an account and scan the QR code from your phone (WhatsApp → Linked devices). Each account uses one linked device (at most 4 per phone number).
 
@@ -89,8 +89,8 @@ podman run --rm --security-opt label=disable -v "$PWD":/work -w /work \
 # Flatpak, built from source and offline, like on Flathub
 # (--no-documents-portal only works around a broken document portal on the host)
 flatpak run --no-documents-portal org.flatpak.Builder --user --install-deps-from=flathub --force-clean \
-  --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.mcdesk.yml
-flatpak build-bundle release/flatpak-repo release/WhatHush-0.2.0.flatpak io.github.chapdel.mcdesk
+  --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.whathush.yml
+flatpak build-bundle release/flatpak-repo release/WhatHush-0.2.0.flatpak io.github.chapdel.whathush
 ```
 
 After any change to `package-lock.json`, regenerate the Flatpak's npm sources with `packaging/flatpak/update-sources.sh` (needs [flatpak-node-generator](https://github.com/flatpak/flatpak-builder-tools/tree/master/node)). `npm run screenshots` regenerates the AppStream screenshots in `packaging/screenshots/`.
@@ -103,7 +103,7 @@ After any change to `package-lock.json`, regenerate the Flatpak's npm sources wi
 | `.deb` | installed in Ubuntu 24.04: dependencies, files, desktop entry, AppArmor profile, self-test with rendering |
 | `.rpm` | installed in Fedora 44: dependencies, valid desktop entry, self-test with rendering |
 | AUR (`packaging/aur/PKGBUILD`) | `makepkg` (checksums verified), then `pacman -U` in Arch Linux, self-test with rendering |
-| Flatpak | built from source on the Electron 25.08 base app with zypak, installed, self-test with rendering inside the real sandbox, uninstalled |
+| Flatpak | built from source on the Electron 26.08 base app with zypak, installed, self-test with rendering inside the real sandbox, uninstalled |
 
 The packaged binary has its Electron fuses set: no `RunAsNode`, no `NODE_OPTIONS`, no `--inspect`, cookie encryption on, and the app loads only from its ASAR archive.
 
@@ -137,7 +137,7 @@ lab/                      Feasibility Lab, a separate throwaway project
 
 ## Releasing
 
-1. Bump `version` in `package.json` and `pkgver` in `packaging/aur/PKGBUILD`, and add a `<release>` entry to `packaging/linux/io.github.chapdel.mcdesk.metainfo.xml`: its English text becomes the release notes.
+1. Bump `version` in `package.json` and `pkgver` in `packaging/aur/PKGBUILD`, and add a `<release>` entry to `packaging/linux/io.github.chapdel.whathush.metainfo.xml`: its English text becomes the release notes.
 2. Commit, then push a tag: `git tag v0.2.0 && git push origin master v0.2.0`. The [Release workflow](.github/workflows/release.yml) runs every test, builds the packages and creates a **draft** release with `SHA256SUMS` and `latest-linux.yml`.
 3. Check the draft on GitHub, then publish it. Running AppImages pick up the update from then on.
 4. **AUR**: `git clone ssh://aur@aur.archlinux.org/whathush-bin.git ../whathush-bin`, then `packaging/aur/update.sh ../whathush-bin` (checksums and `.SRCINFO`, computed in an Arch container with podman), then commit and push in `../whathush-bin`.

@@ -1,6 +1,6 @@
 // Captures des métadonnées AppStream, en anglais, sur la fausse page WhatsApp en mode
 // vitrine (conversations fictives) : packaging/screenshots/*.png, référencées par
-// packaging/linux/io.github.chapdel.mcdesk.metainfo.xml.
+// packaging/linux/io.github.chapdel.whathush.metainfo.xml.
 
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";

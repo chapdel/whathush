@@ -2,7 +2,7 @@
 # Les paquets ne sont publiés que par le workflow release.yml (gh release) :
 # toute commande locale ou de CI passe --publish never.
 
-appId: io.github.chapdel.mcdesk
+appId: io.github.chapdel.whathush
 productName: WhatHush
 executableName: whathush
 copyright: "© 2026 chapdel. Independent project, not affiliated with WhatsApp LLC or Meta Platforms."

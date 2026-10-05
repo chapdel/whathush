@@ -14,7 +14,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 target=$(realpath "${1:?usage : packaging/aur/update.sh <dossier du clone AUR>}")
 version=$(node -p "require('$root/package.json').version")
-appid=io.github.chapdel.mcdesk
+appid=io.github.chapdel.whathush
 grep -q "^pkgver=$version$" "$root/packaging/aur/PKGBUILD" || { echo "pkgver du PKGBUILD différent de $version : à mettre à jour d'abord" >&2; exit 1; }
 
 work=$(mktemp -d)
