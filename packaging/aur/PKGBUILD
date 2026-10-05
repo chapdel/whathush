@@ -24,9 +24,9 @@ source=("whathush-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/whathush
         "${_appid}.desktop"
         "${_appid}.metainfo.xml"
         "${_appid}.png")
-sha256sums=('b636fddda136f54572351be820269fddaec0255e51e5c6f5270ce21473fdeb30'
+sha256sums=('dfd4d7ca3f5354fc2212e94ff2b926c8593b38c947e99fa667d7b1c3ef814228'
             '60f8a2a30515861d4e8822a668faf24269a5225a993dd8eee2d7bace41a1a791'
-            '5d0c9d5b7375296184758f6df1104c03ae988b87976fd4fd2aed2cbac8d2ea04'
+            'd2f1e86c874fcbffcc619885de264faee8664cd389160ed352963525b746755f'
             '1cae46e4c22a84c4735cac999c458bb94ebb844a511ed410b16c26e4b08a81c7')
 
 package() {
