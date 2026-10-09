@@ -266,9 +266,10 @@ console.log(`\n→ ${path.relative(root, file)}`);
 // --- Seuils (--check) -------------------------------------------------------------------------------
 // Non-régression en CI. Seuils larges (machines partagées, mesures bruitées) : ils ne relèvent
 // que les vraies dérives, processus en trop (gdbus…), socle qui grossit ou s'agite, pages
-// cachées qui restent actives. (Socle mesuré : 7 processus, ~270 Mo, 0,2 % de CPU, 16 réveils/s.)
+// cachées qui restent actives. (Socle mesuré : 7 processus sous Fedora, 8 sous Ubuntu avec le
+// « broker » du bac à sable GPU ; ~270 Mo, 0,2 % de CPU, moins de 20 réveils/s.)
 const LIMITS = {
-  socle: { processes: 8, pssMB: 400, cpu: 1, wakeups: 60 },
+  socle: { processes: 9, pssMB: 400, cpu: 1, wakeups: 60, absent: ["gdbus"] },
   hidden: { pagesCpu: 2, pagesHidden: true },
   minimized: { pagesHidden: true },
   economy: { pageProcesses: 1 },
@@ -287,6 +288,7 @@ if (check) {
     if (limit.wakeups !== undefined) over("réveils/s", result.total.wakeups, limit.wakeups);
     if (limit.pagesCpu !== undefined) over("% CPU des pages WhatsApp", pagesRole.cpu, limit.pagesCpu);
     if (limit.pageProcesses !== undefined) over("pages WhatsApp en vie", pagesRole.processes, limit.pageProcesses);
+    for (const role of limit.absent ?? []) if (result.roles[role]) failures.push(`${result.label} : ${result.roles[role].processes} processus « ${role} » inattendu(s)`);
     if (limit.pagesHidden) {
       const visible = (result.pages ?? []).filter((page) => /^https?:/.test(page.url) && page.visibility !== "hidden");
       if (visible.length > 0) failures.push(`${result.label} : ${visible.length} page(s) WhatsApp non masquée(s)`);
