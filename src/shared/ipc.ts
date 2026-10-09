@@ -7,6 +7,8 @@ import type { Locale } from "./i18n";
 import {
   AccountPermissionsSchema,
   AccountProxyModeSchema,
+  DeliverySchema,
+  EconomySchema,
   FocusProfileSchema,
   GlobalProxySchema,
   InterfaceScaleSchema,
@@ -46,11 +48,12 @@ export interface AccountItem {
   unread: number | null;
   inCall: boolean;
   audible: boolean;
-  memoryMB: number | null;
   /** Zoom de la vue WhatsApp, en pourcentage. */
   zoomPercent: number;
   /** Média en cours (ou en pause récente) dans ce compte. */
   playback: { playing: boolean; kind: "audio" | "video"; title: string | null } | null;
+  /** Mode économie : le compte dort entre deux relèves (prochaine relève, ISO). */
+  economy: { dozing: boolean; nextRelayAt: string | null; relaying: boolean } | null;
 }
 
 export interface LockView {
@@ -67,9 +70,12 @@ export interface Notice {
   message: string;
   /** Une information « sticky » ne s'efface pas d'elle-même. */
   sticky?: boolean;
-  /** Action proposée dans la notice (par exemple « Mettre en veille »). */
-  action?: { label: string; command: { type: "sleep-account"; id: string } };
+  /** Action proposée dans la notice (par exemple « Passer en mode économie »). */
+  action?: { label: string; command: NoticeCommand };
 }
+
+/** Commandes qu'une notice peut proposer. */
+export type NoticeCommand = { type: "sleep-account"; id: string } | { type: "update-account"; id: string; patch: { delivery: "periodic" } };
 
 export interface ShellState {
   productName: string;
@@ -96,6 +102,13 @@ export interface ShellState {
   downloads: { active: number; progress: number | null };
   /** Zoom qui vient de changer, affiché brièvement. */
   zoomToast: { accountId: string; percent: number; sequence: number } | null;
+  /**
+   * La coque surveille l'affichage réel de la fenêtre (sonde d'images) : seulement quand
+   * une page WhatsApp est au premier plan ou que le verrou suit le masquage de la fenêtre.
+   */
+  probePresentation: boolean;
+  /** Dernier état de présentation connu : une sonde qui (re)démarre en part. */
+  presented: boolean;
 }
 
 export interface DownloadEntry {
@@ -132,6 +145,8 @@ export interface SettingsState {
   versions: { app: string; electron: string; chromium: string; node: string };
   paths: { userData: string; logs: string };
   memory: Record<string, number | null>;
+  /** Mode économie, par compte : endormi entre deux relèves, prochaine relève (ISO). */
+  economy: Record<string, { dozing: boolean; nextRelayAt: string | null }>;
   /** Navigation contextuelle ; le numéro change seulement sur demande explicite. */
   navigationRequest?: { section: SettingsSection; accountId?: string; sequence: number } | null;
   notices?: Notice[];
@@ -176,7 +191,8 @@ export const AccountPatchSchema = z.strictObject({
   zoomPercent: ZoomPercentSchema.optional(),
   permissions: AccountPermissionsSchema.partial().optional(),
   proxyMode: AccountProxyModeSchema.optional(),
-  proxy: ProxyServerSchema.nullable().optional()
+  proxy: ProxyServerSchema.nullable().optional(),
+  delivery: DeliverySchema.optional()
 });
 export type AccountPatch = z.infer<typeof AccountPatchSchema>;
 
@@ -197,7 +213,9 @@ export const PreferencesPatchSchema = z.strictObject({
   privacyVeil: PrivacyVeilSchema.partial().optional(),
   proxy: GlobalProxySchema.optional(),
   trayCountStyle: TrayCountStyleSchema.optional(),
-  exclusivePlayback: z.boolean().optional()
+  exclusivePlayback: z.boolean().optional(),
+  awayHideMinutes: z.int().min(0).max(240).optional(),
+  economy: EconomySchema.partial().optional()
 });
 export type PreferencesPatch = z.infer<typeof PreferencesPatchSchema>;
 
@@ -223,6 +241,9 @@ export const CommandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("resolve-link"), accountId: Id.nullable() }),
   z.strictObject({ type: z.literal("reorder-accounts"), ids: z.array(Id).max(100) }),
   z.strictObject({ type: z.literal("dismiss-notice"), id: z.string().max(100) }),
+  // La fenêtre est-elle réellement affichée ? (sonde d'images de la coque, sous Wayland
+  // une fenêtre réduite par le bureau n'est signalée à Electron que par « blur »)
+  z.strictObject({ type: z.literal("presentation"), presented: z.boolean() }),
   z.strictObject({
     type: z.literal("open-settings"),
     accountId: Id.optional(),

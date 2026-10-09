@@ -309,17 +309,38 @@ const LINKING_SELECTORS = [
 ].join(",");
 // Interface des conversations : repères historiques, à confirmer avec un compte
 // connecté (test n°17). Sans réponse, le compte passe « connecté » après 45 s.
-const CHATS_SELECTORS = ['#pane-side', '[data-testid="chat-list"]', '[data-testid="chatlist-header"]', "#side"].join(",");
+const CHATS_IDS = ["pane-side", "side"];
+const CHATS_SELECTORS = ['[data-testid="chat-list"]', '[data-testid="chatlist-header"]'].join(",");
+
+// Relevés sans parcours du DOM : l'élément trouvé est gardé et seulement vérifié
+// (isConnected) ; les conversations se cherchent d'abord par identifiant. Un parcours
+// complet ne coûtait que quelques millisecondes, mais toutes les 1,5 s tant que la page
+// bouge (2,7 ms à 6 700 nœuds, 4,9 ms à 18 600).
+let chatsElement: Element | null = null;
+let linkingElement: Element | null = null;
+
+function chatsShown(): boolean {
+  if (chatsElement?.isConnected) return true;
+  chatsElement = null;
+  for (const id of CHATS_IDS) chatsElement ??= document.getElementById(id);
+  chatsElement ??= document.querySelector(CHATS_SELECTORS);
+  return chatsElement !== null;
+}
+
+function linkingShown(): boolean {
+  if (linkingElement?.isConnected) return true;
+  linkingElement = document.querySelector(LINKING_SELECTORS);
+  return linkingElement !== null;
+}
 
 let lastLinkState = "";
 let linkTimer: ReturnType<typeof setTimeout> | null = null;
 
 function reportLinkState(): void {
   linkTimer = null;
-  const state = {
-    linking: document.querySelector(LINKING_SELECTORS) !== null,
-    chats: document.querySelector(CHATS_SELECTORS) !== null
-  };
+  const chats = chatsShown();
+  // Connecté, l'écran de liaison n'est pas cherché.
+  const state = { linking: !chats && linkingShown(), chats };
   const key = `${state.linking}|${state.chats}`;
   if (key !== lastLinkState) {
     lastLinkState = key;
@@ -337,6 +358,13 @@ window.addEventListener("DOMContentLoaded", () => {
   scheduleLinkState();
 });
 
+// Retour du réseau : le principal redemande l'état sans recharger la page.
+ipcRenderer.on(CHANNELS.waLinkStateRequest, () => {
+  lastLinkState = "";
+  if (linkTimer) clearTimeout(linkTimer);
+  reportLinkState();
+});
+
 // --- Voile de confidentialité -------------------------------------------------------------
 // Le flou est appliqué par le processus principal (CSS inséré) ; ici, on signale
 // seulement le premier survol ou clic pendant le voile. Pendant un partage d'écran
@@ -346,6 +374,7 @@ let revealSent = false;
 ipcRenderer.on(CHANNELS.waVeil, (_event, state: typeof veil) => {
   veil = state;
   revealSent = false;
+  watchPointer(veil.veiled);
   if (veil.blurMessages) scheduleAdapterCheck();
 });
 function onPointer(kind: "hover" | "click"): void {
@@ -354,23 +383,46 @@ function onPointer(kind: "hover" | "click"): void {
   ipcRenderer.send(CHANNELS.waVeilReveal, { kind });
 }
 // Seuls les gestes réels comptent : un événement fabriqué par la page ne dévoile rien.
-window.addEventListener("pointermove", (event) => event.isTrusted && onPointer("hover"), { capture: true, passive: true });
-window.addEventListener("pointerdown", (event) => event.isTrusted && onPointer("click"), { capture: true, passive: true });
+// Écouteurs posés pendant le voile seulement (sinon chaque mouvement de souris les appellerait).
+const onPointerMove = (event: PointerEvent): void => {
+  if (event.isTrusted) onPointer("hover");
+};
+const onPointerDown = (event: PointerEvent): void => {
+  if (event.isTrusted) onPointer("click");
+};
+let pointerWatched = false;
+function watchPointer(on: boolean): void {
+  if (on === pointerWatched) return;
+  pointerWatched = on;
+  const options = { capture: true, passive: true };
+  if (on) {
+    window.addEventListener("pointermove", onPointerMove, options);
+    window.addEventListener("pointerdown", onPointerDown, options);
+  } else {
+    window.removeEventListener("pointermove", onPointerMove, options);
+    window.removeEventListener("pointerdown", onPointerDown, options);
+  }
+}
 
 // Expérimental : les repères du flou des messages existent-ils encore ? Relevé une
 // fois les conversations affichées ; sans correspondance, la fonction se désactive.
+// Seulement si le flou des messages est activé : aucun observateur sinon.
 const MESSAGE_BLUR_SELECTORS = ['#pane-side [data-testid="cell-frame-secondary"]', "[data-pre-plain-text]"].join(",");
 let adapterChecked = false;
 let adapterTimer: ReturnType<typeof setTimeout> | null = null;
+let adapterObserver: MutationObserver | null = null;
 function scheduleAdapterCheck(): void {
   if (adapterChecked || adapterTimer || !veil.blurMessages) return;
+  if (!adapterObserver && document.documentElement) {
+    adapterObserver = new MutationObserver(() => scheduleAdapterCheck());
+    adapterObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
   adapterTimer = setTimeout(() => {
     adapterTimer = null;
-    if (adapterChecked || document.querySelector(CHATS_SELECTORS) === null) return;
+    if (adapterChecked || !chatsShown()) return;
     adapterChecked = true;
+    adapterObserver?.disconnect();
+    adapterObserver = null;
     ipcRenderer.send(CHANNELS.waAdapterCheck, { messageBlur: document.querySelector(MESSAGE_BLUR_SELECTORS) !== null });
   }, 3000);
 }
-window.addEventListener("DOMContentLoaded", () => {
-  new MutationObserver(() => scheduleAdapterCheck()).observe(document.documentElement, { childList: true, subtree: true });
-});

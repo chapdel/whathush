@@ -78,7 +78,8 @@ const paths: Record<string, ReactNode> = {
   shield: <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />,
   globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
   file: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /></>,
-  folder: <path d="M3 6h6l2 2h10v11H3z" />
+  folder: <path d="M3 6h6l2 2h10v11H3z" />,
+  leaf: <path d="M5 20c0-9 6-15 15-15 0 9-6 15-15 15zM5 20l8-8" />
 };
 
 export type IconName = keyof typeof paths;
@@ -118,13 +119,16 @@ export function Avatar({
   account?: AccountItem;
   showBadge?: boolean;
 }) {
-  const dim = account?.lifecycle === "sleeping";
+  // Mode économie : le compte dort entre deux relèves mais reste joignable, il n'est pas grisé.
+  const economy = Boolean(account?.economy);
+  const dim = account?.lifecycle === "sleeping" && !economy;
   let state: ReactNode = null;
   if (account) {
     if (account.inCall) state = <span className="state call"><Icon name="phone" /></span>;
     else if (account.playback?.playing) state = <span className="state call"><Icon name="play" /></span>;
     else if (account.lifecycle === "needs_qr" || account.lifecycle === "crashed") state = <span className="state warn"><Icon name="warning" /></span>;
     else if (account.lifecycle === "offline") state = <span className="state"><Icon name="wifi-off" /></span>;
+    else if (economy) state = <span className="state"><Icon name="leaf" /></span>;
     else if (account.lifecycle === "sleeping") state = <span className="state"><Icon name="moon" /></span>;
     else if (account.policy.mode === "snoozed") state = <span className="state"><Icon name="bell-off" /></span>;
     else if (account.policy.mode === "calls-only") state = <span className="state"><Icon name="phone" /></span>;

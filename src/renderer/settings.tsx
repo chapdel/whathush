@@ -4,7 +4,7 @@
 import { StrictMode, useEffect, useState, useId, cloneElement, isValidElement, type ReactNode, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { AccountPatch, DownloadEntry, PreferencesPatch, SettingsSection, SettingsState } from "../shared/ipc";
-import type { AccountConfig, AccountPermissions, FocusProfile, LanguagePreference, Mode, PermissionChoice, ProxyServer, Schedule, ScheduleRule } from "../shared/schemas";
+import type { AccountConfig, AccountPermissions, Delivery, EconomyInterval, FocusProfile, LanguagePreference, Mode, PermissionChoice, ProxyServer, Schedule, ScheduleRule } from "../shared/schemas";
 import { SHORTCUTS } from "../shared/shortcuts";
 import { DEFAULT_ACCOUNT_COLOR } from "../shared/constants";
 import { formatBytes, formatDateTime, formatNumber, languageName, LOCALES, resolveLocale, setLocale, t, weekdayName, type Locale } from "../shared/i18n";
@@ -132,6 +132,26 @@ function GeneralSection({ state }: { state: SettingsState }) {
         </Row>
         <Row title={t("general.startMinimized")} detail={state.trayAvailable ? t("general.startMinimizedTray") : t("general.startMinimizedNoTray")}>
           <Toggle label={t("general.startMinimized")} checked={preferences.startMinimized} onChange={(startMinimized) => setPreferences({ startMinimized })} />
+        </Row>
+      </div>
+
+      <div className="section-label">{t("general.energy")}</div>
+      <div className="settings-group">
+        <Row title={t("general.awayHide")} detail={t("general.awayHideDetail")}>
+          <select className="select" name="away-hide" value={preferences.awayHideMinutes} onChange={(event) => setPreferences({ awayHideMinutes: Number(event.target.value) })}>
+            <option value={0}>{t("common.never")}</option>
+            {([2, 5, 15, 30] as const).map((minutes) => <option key={minutes} value={minutes}>{t(`awayHide.${minutes}`)}</option>)}
+          </select>
+        </Row>
+        <Row title={t("general.economyInterval")} detail={t("general.economyIntervalDetail")}>
+          <select className="select" name="economy-interval" value={preferences.economy.intervalMinutes}
+            onChange={(event) => setPreferences({ economy: { intervalMinutes: Number(event.target.value) as EconomyInterval } })}>
+            {([15, 30, 60] as const).map((minutes) => <option key={minutes} value={minutes}>{t(`economyInterval.${minutes}`)}</option>)}
+          </select>
+        </Row>
+        <Row title={t("general.economyInTray")} detail={state.trayAvailable ? t("general.economyInTrayDetail") : t("general.noTray")}>
+          <Toggle label={t("general.economyInTray")} checked={preferences.economy.inTray && state.trayAvailable} disabled={!state.trayAvailable}
+            onChange={(inTray) => setPreferences({ economy: { inTray } })} />
         </Row>
       </div>
 
@@ -385,6 +405,12 @@ function AccountEditor({ account, state }: { account: AccountConfig; state: Sett
   const notifications = account.notifications;
   const setNotification = (key: keyof AccountConfig["notifications"], value: boolean) => update({ notifications: { [key]: value } });
   const memory = state.memory[account.id];
+  const economy = state.economy[account.id];
+  const interval = state.preferences.economy.intervalMinutes;
+  const nextRelay = economy?.nextRelayAt ? formatDateTime(new Date(economy.nextRelayAt), { timeStyle: "short" }) : null;
+  const deliveryDetail = account.delivery === "periodic"
+    ? `${t("account.deliveryPeriodicDetail", { minutes: interval })}${nextRelay ? ` ${t("account.nextRelay", { time: nextRelay })}` : ""}`
+    : t("account.deliveryRealtimeDetail");
 
   return (
     <div>
@@ -438,6 +464,14 @@ function AccountEditor({ account, state }: { account: AccountConfig; state: Sett
 
       <div className="section-label">{t("account.schedulesResources")}</div>
       <div className="settings-group">
+        <Row title={t("account.delivery")} detail={deliveryDetail}>
+          <Segmented
+            aria-label={t("account.delivery")}
+            value={account.delivery}
+            options={(["realtime", "periodic"] as const).map((value) => ({ value, label: t(`delivery.${value}`) }))}
+            onChange={(delivery: Delivery) => update({ delivery })}
+          />
+        </Row>
         <Row title={t("account.schedule")} detail={t("account.scheduleDetail")}>
           <select name="setting" className="select" value={account.scheduleId ?? ""} onChange={(event) => update({ scheduleId: event.target.value || null })}>
             <option value="">{t("common.none")}</option>
@@ -448,9 +482,10 @@ function AccountEditor({ account, state }: { account: AccountConfig; state: Sett
             ))}
           </select>
         </Row>
-        <Row title={t("account.autoSleep")} detail={memory ? t("account.memory", { mb: formatNumber(memory) }) : t("account.neverInCall")}>
+        <Row title={t("account.autoSleep")} detail={account.delivery === "periodic" ? t("account.autoSleepSaver") : memory ? t("account.memory", { mb: formatNumber(memory) }) : t("account.neverInCall")}>
           <select name="setting"
             className="select"
+            disabled={account.delivery === "periodic"}
             value={account.autoSleepAfterMinutes ? String(account.autoSleepAfterMinutes) : ""}
             onChange={(event) => update({ autoSleepAfterMinutes: event.target.value ? Number(event.target.value) : null })}
           >

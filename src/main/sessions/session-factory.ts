@@ -34,6 +34,12 @@ export function usesWaylandPortal(ozonePlatform: string): boolean {
 }
 
 const hardened = new WeakSet<Session>();
+/** Comptes dont la session existe déjà : un réglage ne doit pas créer celle d'un compte endormi. */
+const created = new Set<string>();
+
+export function hasAccountSession(accountId: string): boolean {
+  return created.has(accountId);
+}
 
 export function chromeUserAgent(): string {
   // Le moteur réellement utilisé, sans la mention Electron.
@@ -46,6 +52,7 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
   const ses = session.fromPartition(partitionFor(accountId));
   if (hardened.has(ses)) return ses;
   hardened.add(ses);
+  created.add(accountId);
   const { log, whatsappOrigin } = deps;
 
   ses.setUserAgent(deps.userAgent);
@@ -111,11 +118,15 @@ export function accountSession(accountId: string, deps: SessionDeps): Session {
   return ses;
 }
 
-/** Jamais de téléchargement depuis Google sans choix explicite d'une langue non embarquée. */
+/**
+ * Jamais de téléchargement depuis Google sans choix explicite d'une langue non embarquée.
+ * Correcteur désactivé : aucune langue, sinon Chromium charge quand même le dictionnaire de
+ * la langue de l'interface dans chaque session (vérifié : désactiver ne suffit pas).
+ */
 export function applySpellcheck(ses: Session, plan: SpellcheckPlan): void {
   ses.setSpellCheckerDictionaryDownloadURL(plan.allowGoogle ? GOOGLE_DICTIONARY_URL : BLOCKED_DICTIONARY_URL);
   ses.setSpellCheckerEnabled(plan.languages.length > 0);
-  if (plan.languages.length > 0) ses.setSpellCheckerLanguages(plan.languages);
+  ses.setSpellCheckerLanguages(plan.languages);
 }
 
 /**

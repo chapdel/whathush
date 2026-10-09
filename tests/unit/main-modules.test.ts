@@ -23,9 +23,9 @@ const item = (overrides: Partial<AccountItem> = {}): AccountItem => ({
   unread: 4,
   inCall: false,
   audible: false,
-  memoryMB: null,
   zoomPercent: 100,
   playback: null,
+  economy: null,
   ...overrides
 });
 
@@ -64,13 +64,15 @@ describe("adaptateur WhatsApp", () => {
 });
 
 describe("veille automatique", () => {
-  const base = { id: "a", autoSleepAfterMinutes: 30, sleeping: false, active: false, inCall: false, hiddenSince: NOW.getTime() - 31 * 60_000 };
+  const base = { id: "a", autoSleepAfterMinutes: 30, delivery: "realtime" as const, sleeping: false, active: false, inCall: false, hiddenSince: NOW.getTime() - 31 * 60_000 };
   it("endort un compte caché depuis assez longtemps", () => {
     expect(accountsToAutoSleep([base], NOW.getTime())).toEqual(["a"]);
   });
-  it("épargne le compte affiché, en appel, déjà endormi, sans option ou caché trop récemment", () => {
+  it("épargne le compte affiché, en appel, déjà endormi, en mode économie, sans option ou caché trop récemment", () => {
     const now = NOW.getTime();
     expect(accountsToAutoSleep([{ ...base, active: true, hiddenSince: null }], now)).toEqual([]);
+    // Le mode économie l'endort déjà entre deux relèves : la veille les arrêterait.
+    expect(accountsToAutoSleep([{ ...base, delivery: "periodic" }], now)).toEqual([]);
     expect(accountsToAutoSleep([{ ...base, inCall: true }], now)).toEqual([]);
     expect(accountsToAutoSleep([{ ...base, sleeping: true }], now)).toEqual([]);
     const { autoSleepAfterMinutes: _option, ...withoutOption } = base;
@@ -158,7 +160,9 @@ describe("menus natifs", () => {
       veiled: false,
       nowPlaying: null,
       downloads: { active: 0, progress: null },
-      zoomToast: null
+      zoomToast: null,
+      probePresentation: false,
+      presented: true
     };
     const menu = labels(trayMenu(state, NOW));
     expect(menu[0]).toBe("WhatHush");
@@ -246,14 +250,16 @@ describe("correctifs de la seconde revue", () => {
     expect(statusHint(item({ inCall: true }), NOW)).toBe("En appel");
   });
 
-  it("suggère d'endormir le compte caché depuis le plus longtemps, au-delà du seuil", () => {
+  it("suggère le mode économie pour le compte caché depuis le plus longtemps, au-delà du seuil", () => {
     const now = NOW.getTime();
-    const base = { sleeping: false, active: false, inCall: false, memoryMB: 400 };
+    const base = { sleeping: false, active: false, inCall: false, memoryMB: 400, delivery: "realtime" as const };
     const inputs = [
       { ...base, id: "a", label: "A", hiddenSince: now - 40 * 60_000 },
       { ...base, id: "b", label: "B", hiddenSince: now - 3 * 60 * 60_000 },
       { ...base, id: "c", label: "C", hiddenSince: now - 5 * 60 * 60_000, inCall: true },
-      { ...base, id: "d", label: "D", hiddenSince: now - 10 * 60_000 }
+      { ...base, id: "d", label: "D", hiddenSince: now - 10 * 60_000 },
+      // Déjà en mode économie : jamais proposé.
+      { ...base, id: "e", label: "E", hiddenSince: now - 8 * 60 * 60_000, delivery: "periodic" as const }
     ];
     expect(sleepSuggestion(RAM_SUGGESTION_MB + 1, inputs, now)?.id).toBe("b");
     expect(sleepSuggestion(RAM_SUGGESTION_MB - 1, inputs, now)).toBeNull();

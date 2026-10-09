@@ -47,11 +47,15 @@ import {
 import type { AccountConfig, ProxyServer } from "../shared/schemas";
 import { matchShortcut, nextZoom, shortcutDigit } from "../shared/shortcuts";
 import { AccountManager } from "./accounts/account-manager";
+import { EconomyService } from "./accounts/economy-service";
 import { CallCoordinator } from "./calls/call-coordinator";
 import { reorderAccounts } from "./core/accounts";
 import { accountMenu, focusMenu, snoozeMenu, trayMenu, type MenuAction, type MenuItemModel } from "./core/menus";
 import { alwaysAllow, normalizeOrigin, type PermissionSubject } from "./core/permissions";
+import type { EconomyTiming } from "./core/economy";
 import { PlaybackTracker, shouldMute } from "./core/playback";
+import { NOT_PRESENTED_LOCK_DELAY_MS } from "./core/presence";
+import type { RecycleThresholds } from "./core/resources";
 import { BUNDLED_DICTIONARIES, spellcheckPlan, systemDictionary, type SpellcheckPlan } from "./core/spellcheck";
 import { trayIconName } from "./core/tray";
 import { attachContextMenu, isTrayAvailable, setLaunchAtLogin, setWhatsappLinkHandler } from "./desktop/desktop";
@@ -62,12 +66,13 @@ import type { Logger } from "./log";
 import { AvatarFetcher } from "./notifications/avatar-fetcher";
 import { NotificationManager, type ShownNotification } from "./notifications/notification-manager";
 import { PolicyService } from "./policy/policy-service";
+import { PresenceService } from "./presence/presence-service";
 import { VeilService } from "./privacy/veil-service";
 import { ProxyService, type ProxyTestResult } from "./proxy/proxy-service";
 import { ResourceMonitor } from "./resources/resource-monitor";
 import { LockService } from "./security/lock-service";
 import { systemTimeZone } from "./system-timezone";
-import { accountSession, applySpellcheck, chromeUserAgent, usesWaylandPortal } from "./sessions/session-factory";
+import { accountSession, applySpellcheck, chromeUserAgent, hasAccountSession, usesWaylandPortal } from "./sessions/session-factory";
 import type { AppStore } from "./storage/app-store";
 import { TrayManager, toElectronMenu } from "./tray/tray-manager";
 import { ViewManager } from "./views/view-manager";
@@ -85,6 +90,15 @@ export interface AppOptions {
   initialArgv: string[];
   /** Tests : origines autorisées pour les photos des notifications. */
   avatarOrigins?: string[];
+  /** Tests : délais raccourcis (mode économie, recyclage, mesures, présence). */
+  timings?: {
+    economy?: Partial<EconomyTiming>;
+    economyTickMs?: number;
+    economyIntervalMs?: number;
+    recycle?: RecycleThresholds;
+    monitorMs?: { normal: number; settings: number };
+    presencePollMs?: { present: number; away: number };
+  };
 }
 
 /** Ce que les tests de bout en bout observent (WHATHUSH_TEST=1). */
@@ -103,13 +117,19 @@ export interface TestProbe {
 }
 
 const NETWORK_POLL_MS = 10_000;
+/** Lancement dans la barre système (ouverture de session) : WhatsApp attend que le bureau soit installé. */
+const HIDDEN_START_DEFER_MS = 20_000;
+/** Le réveil du PC est souvent signalé deux fois : un seul traitement. */
+const RESUME_DEDUPE_MS = 5_000;
+/** Menu du tray reconstruit au plus une fois par intervalle (plasmashell relit tout le menu). */
+const TRAY_THROTTLE_MS = 2_000;
 
 /** Même serveur de proxy (type, hôte, port) : les identifiants enregistrés restent valables. */
 function sameServer(a: ProxyServer | null, b: ProxyServer | null): boolean {
   return Boolean(a && b && a.type === b.type && a.host.toLowerCase() === b.host.toLowerCase() && a.port === b.port);
 }
 /** Commandes acceptées pendant le verrouillage. */
-const ALLOWED_WHILE_LOCKED: ReadonlySet<Command["type"]> = new Set(["unlock", "forgot-lock-code", "set-modal", "dismiss-notice"]);
+const ALLOWED_WHILE_LOCKED: ReadonlySet<Command["type"]> = new Set(["unlock", "forgot-lock-code", "set-modal", "dismiss-notice", "presentation"]);
 
 export class Application {
   readonly store: AppStore;
@@ -124,6 +144,8 @@ export class Application {
   readonly lock: LockService;
   readonly veil: VeilService;
   readonly proxy: ProxyService;
+  readonly presence: PresenceService;
+  readonly economy: EconomyService;
   readonly playback = new PlaybackTracker();
   readonly probe: TestProbe | null;
   private readonly avatars: AvatarFetcher;
@@ -137,6 +159,15 @@ export class Application {
   private quitting = false;
   private pushScheduled = false;
   private traySignature = "";
+  /** Dernier état envoyé : rien n'est renvoyé s'il n'a pas changé. */
+  private lastShellJson = "";
+  private lastSettingsJson = "";
+  private lastBadge: number | null = null;
+  private trayDue = 0;
+  private trayTimer: NodeJS.Timeout | null = null;
+  private trayLocked = false;
+  private notPresentedTimer: NodeJS.Timeout | null = null;
+  private lastResumeAt = 0;
   private zoomToast: ShellState["zoomToast"] = null;
   private zoomSequence = 0;
   private sharingScreen = false;
@@ -175,9 +206,9 @@ export class Application {
         this.notifications.closeForPage(webContentsId);
         if (this.playback.pageGone(webContentsId)) this.pushState();
       },
-      accountGone: (accountId) => {
+      accountGone: (accountId, options) => {
         this.calls.resetAccount(accountId);
-        this.notifications.closeForAccount(accountId);
+        if (!options?.keepNotifications) this.notifications.closeForAccount(accountId);
         if (this.playback.accountGone(accountId)) this.pushState();
       },
       linked: (accountId) => this.accountLinked(accountId)
@@ -227,7 +258,40 @@ export class Application {
           }
         : {})
     });
-    this.resources = new ResourceMonitor(this.accounts, () => this.views, this.calls, (notice) => this.addNotice(notice));
+    this.presence = new PresenceService({
+      log: this.log,
+      idleSeconds: () => (this.probe ? this.probe.idleSeconds : powerMonitor.getSystemIdleTime()),
+      awayHideMinutes: () => this.store.get("preferences").awayHideMinutes,
+      ...(options.timings?.presencePollMs ? { pollMs: options.timings.presencePollMs } : {})
+    });
+    this.economy = new EconomyService({
+      accounts: this.accounts,
+      calls: this.calls,
+      playing: (id) => Boolean(this.playback.forAccount(id, Date.now())?.playing),
+      preferences: () => this.store.get("preferences").economy,
+      windowVisible: () => !this.mainWindow || this.mainWindow.isDestroyed() || this.mainWindow.isVisible(),
+      digest: (id, unread) => void this.notifications.digest(id, unread),
+      log: this.log,
+      ...(options.timings?.economy ? { timing: options.timings.economy } : {}),
+      ...(options.timings?.economyTickMs ? { tickMs: options.timings.economyTickMs } : {}),
+      ...(options.timings?.economyIntervalMs ? { intervalMs: options.timings.economyIntervalMs } : {})
+    });
+    this.resources = new ResourceMonitor({
+      accounts: this.accounts,
+      views: () => this.views,
+      calls: this.calls,
+      suggest: (notice) => this.addNotice(notice),
+      playing: (id) => Boolean(this.playback.forAccount(id, Date.now())?.playing),
+      presence: () => ({
+        windowVisible: !this.mainWindow || this.mainWindow.isDestroyed() || this.mainWindow.isVisible(),
+        presented: this.presence.isPresented(),
+        away: this.presence.isAway()
+      }),
+      economyInterval: () => this.store.get("preferences").economy.intervalMinutes,
+      log: this.log,
+      ...(options.timings?.recycle ? { recycleThresholds: options.timings.recycle } : {}),
+      ...(options.timings?.monitorMs ? { intervalMs: options.timings.monitorMs } : {})
+    });
     this.veil = new VeilService({ log: this.log, preferences: () => this.store.get("preferences").privacyVeil, pages: () => this.views?.allPages() ?? [] });
     this.proxy = new ProxyService({
       store: this.store,
@@ -237,6 +301,8 @@ export class Application {
       accounts: () => this.accounts.accounts(),
       pages: (id) => this.views?.pages(id) ?? [],
       accountForPage: (contents) => this.views?.accountIdFor(contents),
+      live: (id) => this.views?.has(id) ?? false,
+      hasSession: (id) => hasAccountSession(id),
       notifyAuthProblem: (scope, kind) => {
         const label = scope === "global" ? t("proxy.scopeGlobal") : (this.accounts.account(scope)?.label ?? t("common.anAccount"));
         this.addNotice({ id: `proxy-${kind}-${scope}`, level: "warning", message: t(kind === "failed" ? "notice.proxyAuthFailed" : "notice.proxyCredentialsNeeded", { scope: label }) });
@@ -274,12 +340,30 @@ export class Application {
     this.registerIpc();
     this.wireSystem();
 
-    for (const source of [this.accounts, this.policy, this.calls, this.resources, this.downloads, this.veil, this.lock] as const) {
+    for (const source of [this.accounts, this.policy, this.calls, this.downloads, this.veil, this.lock, this.economy] as const) {
       source.on("changed", () => this.pushState());
     }
+    // La mémoire de chaque compte n'est affichée que dans les paramètres.
+    this.resources.on("memory", () => this.pushSettings());
+    // Personne ne peut voir la fenêtre : vues masquées (bridées, rien n'est lu) ; fenêtre non
+    // présentée (réduite sous Wayland) un moment : verrou « fenêtre masquée » s'il est choisi.
+    this.presence.on("changed", () => {
+      this.updateAttended();
+      this.pushState();
+      if (this.presence.isPresented()) {
+        if (this.notPresentedTimer) clearTimeout(this.notPresentedTimer);
+        this.notPresentedTimer = null;
+      } else if (!this.notPresentedTimer) {
+        this.notPresentedTimer = setTimeout(() => {
+          this.notPresentedTimer = null;
+          if (!this.presence.isPresented()) this.lock.trigger("hide");
+        }, NOT_PRESENTED_LOCK_DELAY_MS);
+      }
+    });
     this.policy.on("changed", () => this.applyAudio());
     this.calls.on("changed", () => {
       this.applyAudio();
+      this.updateAttended();
       // Voile automatique au début d'un partage d'écran.
       const sharing = this.calls.sharingScreen();
       if (sharing !== this.sharingScreen) {
@@ -319,7 +403,11 @@ export class Application {
     // Avant les comptes : verrouillé au démarrage, aucune vue ne s'affiche, même un instant.
     this.lock.start();
     this.policy.start();
-    this.accounts.start();
+    // Lancé dans la barre système (ouverture de session) : rien n'est affiché, le bureau s'installe d'abord.
+    this.accounts.start({ deferMs: hidden && !this.options.test ? HIDDEN_START_DEFER_MS : 0 });
+    this.presence.setWindowVisible(!hidden);
+    this.presence.start();
+    this.economy.start(!hidden);
     this.resources.start();
     this.pushState();
 
@@ -451,14 +539,25 @@ export class Application {
     for (const event of ["resize", "maximize", "unmaximize", "enter-full-screen", "leave-full-screen"] as const) {
       window.on(event as "resize", () => this.views.relayout());
     }
-    window.on("show", () => this.accounts.refreshVisibility());
-    // Fenêtre masquée ou réduite, fenêtre qui perd le focus.
-    window.on("hide", () => this.lock.trigger("hide"));
+    window.on("show", () => {
+      this.accounts.expedite();
+      this.presence.setWindowVisible(true);
+      this.economy.windowChanged(true);
+      this.accounts.refreshVisibility();
+    });
+    // Fenêtre masquée ou réduite, fenêtre qui perd le focus. Sous Wayland, une réduction
+    // par le bureau n'émet pas « minimize » : la sonde de présentation de la coque prend le relais.
+    window.on("hide", () => {
+      this.lock.trigger("hide");
+      this.presence.setWindowVisible(false);
+      this.economy.windowChanged(false);
+    });
     window.on("minimize", () => this.lock.trigger("hide"));
     window.on("blur", () => this.veil.windowBlurred());
     // La fenêtre rendrait le clavier à la dernière vue qui l'avait (masquée) ;
     // verrouillé, il va toujours au champ du code.
     window.on("focus", () => {
+      this.presence.refresh();
       if (this.lock.isLocked()) window.webContents.focus();
     });
     window.on("close", (event) => {
@@ -473,13 +572,18 @@ export class Application {
     });
     window.webContents.on("before-input-event", (event, input) => this.handleShortcut(event, input, window.webContents));
     window.webContents.on("did-finish-load", () => {
+      // Page neuve : elle n'a encore rien reçu (et son <title> a pu remplacer celui de la fenêtre).
+      this.lastShellJson = "";
+      this.lastBadge = null;
       this.applyInterfaceScale();
       this.pushState();
     });
     // Un plantage de la coque la recharge, sans toucher aux vues WhatsApp.
     window.webContents.on("render-process-gone", (_event, details) => {
       this.log.error("shell-renderer-gone", { reason: details.reason });
+      this.lastShellJson = "";
       this.accounts.setModal(false);
+      this.presence.setPresented(true);
       window.webContents.reload();
     });
   }
@@ -505,6 +609,10 @@ export class Application {
     });
     // Au réveil, recalculer les politiques et vérifier le réseau.
     powerMonitor.on("resume", () => {
+      // Signalé deux fois à quelques millisecondes d'intervalle (journal) : un seul traitement.
+      const now = Date.now();
+      if (now - this.lastResumeAt < RESUME_DEDUPE_MS) return;
+      this.lastResumeAt = now;
       this.log.info("system-resume");
       this.policy.recompute();
       // Un seul chemin : en ligne, on recharge les comptes hors ligne une fois ;
@@ -634,7 +742,11 @@ export class Application {
     }
     const settings = createSettingsWindow(this.options.paths, null, { devTools: this.options.devTools });
     this.settingsWindow = settings;
+    this.lastSettingsJson = "";
+    // Mémoire de chaque compte affichée : mesure plus fréquente tant que la fenêtre est ouverte.
+    this.resources.setFast(true);
     settings.webContents.on("did-finish-load", () => {
+      this.lastSettingsJson = "";
       this.applyInterfaceScale();
       this.pushState();
     });
@@ -645,11 +757,15 @@ export class Application {
         this.lockNow();
       }
     });
-    settings.webContents.on("render-process-gone", () => settings.webContents.reload());
+    settings.webContents.on("render-process-gone", () => {
+      this.lastSettingsJson = "";
+      settings.webContents.reload();
+    });
     // Au retour sur la fenêtre, l'état est relu (un fichier téléchargé a pu être déplacé).
     settings.on("focus", () => this.pushState());
     this.settingsWindow.on("closed", () => {
       this.settingsWindow = null;
+      this.resources.setFast(false);
     });
   }
 
@@ -664,6 +780,7 @@ export class Application {
   private openFromNotification(id: string, webContentsId: number, notificationId: number): void {
     this.accounts.switchTo(id);
     this.showMainWindow();
+    this.presence.refresh();
     // Verrouillé : la fenêtre s'ouvre sur l'écran de verrouillage, la conversation attendra.
     if (this.lock.isLocked()) return;
     // La page d'origine (vue ou popup) reçoit le clic et ouvre la conversation.
@@ -713,12 +830,13 @@ export class Application {
       return account?.notifications.includeInTotal && policy?.badge ? sum + (item.unread ?? 0) : sum;
     }, 0);
     const media = accounts.filter((item) => item.playback).sort((a, b) => Number(b.playback?.playing) - Number(a.playback?.playing))[0];
+    const activeId = this.accounts.active();
     const state: ShellState = {
       productName: PRODUCT_NAME,
       language: locale(),
       localeTag: localeTag(),
       accounts,
-      activeId: this.accounts.active(),
+      activeId,
       totalUnread,
       focus: {
         profiles: focus.profiles.map((profile) => ({ id: profile.id, name: profile.name })),
@@ -734,7 +852,11 @@ export class Application {
       veiled: this.veil.isVeiled(),
       nowPlaying: media?.playback ? { accountId: media.id, label: media.label, ...media.playback } : null,
       downloads: this.downloads.summary(),
-      zoomToast: this.zoomToast
+      zoomToast: this.zoomToast,
+      // Page du compte affiché, qu'elle soit visible ou non (masquée faute de présentation,
+      // elle doit pouvoir réapparaître) ; ou verrou à déclencher quand la fenêtre disparaît.
+      probePresentation: !lock.locked && ((activeId !== null && this.views.has(activeId)) || (lock.enabled && this.lock.options().onHide)),
+      presented: this.presence.isPresented()
     };
     // Verrouillé, l'interface ne reçoit ni les comptes ni les informations.
     if (lock.locked) return { ...state, accounts: [], activeId: null, focus: { profiles: [], activeProfileId: null, until: null }, pendingLink: null, notices: [], nowPlaying: null, zoomToast: null };
@@ -761,15 +883,20 @@ export class Application {
       unread: policy?.badge ? (runtime?.unread ?? null) : null,
       inCall: this.calls.inCall(account.id),
       audible: runtime?.audible ?? false,
-      memoryMB: this.resources.memoryMB(account.id),
       zoomPercent: account.zoomPercent,
-      playback: playback ? { playing: playback.playing, kind: playback.kind, title: playback.title } : null
+      playback: playback ? { playing: playback.playing, kind: playback.kind, title: playback.title } : null,
+      economy: this.economy.status(account.id)
     };
   }
 
   settingsState(): SettingsState {
     const memory: Record<string, number | null> = {};
-    for (const account of this.accounts.accounts()) memory[account.id] = this.resources.memoryMB(account.id);
+    const economy: SettingsState["economy"] = {};
+    for (const account of this.accounts.accounts()) {
+      memory[account.id] = this.resources.memoryMB(account.id);
+      const status = this.economy.status(account.id);
+      economy[account.id] = { dozing: status?.dozing ?? false, nextRelayAt: status?.nextRelayAt ?? null };
+    }
     const lock = this.store.get("security").lock;
     const proxyAccounts: Record<string, boolean> = {};
     for (const account of this.accounts.accounts()) proxyAccounts[account.id] = this.proxy.hasCredentials(account.id);
@@ -793,6 +920,7 @@ export class Application {
       versions: { app: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, node: process.versions.node },
       paths: { userData: app.getPath("userData"), logs: this.log.dir },
       memory,
+      economy,
       navigationRequest: this.settingsRequest,
       notices: [...this.notices],
       downloads: this.downloads.list().map((entry) => ({
@@ -824,25 +952,73 @@ export class Application {
       this.pushScheduled = false;
       if (this.mainWindow.isDestroyed()) return;
       const state = this.shellState();
-      this.mainWindow.webContents.send(CHANNELS.shellState, state);
-      if (!this.lock.isLocked()) this.settingsWebContents()?.send(CHANNELS.settingsState, this.settingsState());
-      this.updateBadge(state);
-      // Le menu du tray n'est reconstruit que si son contenu change (un menu
-      // ouvert se refermerait sinon sur certains bureaux).
-      const menu = trayMenu(state, new Date());
-      const icon = trayIconName(state.lock.locked ? 0 : state.totalUnread, this.store.get("preferences").trayCountStyle);
-      const signature = JSON.stringify(menu) + state.totalUnread + icon;
-      if (this.tray && signature !== this.traySignature) {
-        this.traySignature = signature;
-        this.tray.update(menu, state.lock.locked ? 0 : state.totalUnread, icon, (action) => this.dispatchMenuAction(action));
+      // Rien n'est renvoyé si l'état n'a pas changé : ni à la coque, ni aux paramètres,
+      // ni au badge, ni au tray (le bureau relit tout le menu à chaque changement).
+      const json = JSON.stringify(state);
+      if (json !== this.lastShellJson) {
+        this.lastShellJson = json;
+        this.mainWindow.webContents.send(CHANNELS.shellState, state);
       }
+      this.pushSettings();
+      this.updateBadge(state);
+      this.updateTray(state);
     }, 30);
+  }
+
+  /** État des paramètres ouverts, s'il a changé. */
+  private pushSettings(): void {
+    const contents = this.settingsWebContents();
+    if (!contents || this.lock.isLocked()) return;
+    const state = this.settingsState();
+    const json = JSON.stringify(state);
+    if (json === this.lastSettingsJson) return;
+    this.lastSettingsJson = json;
+    contents.send(CHANNELS.settingsState, state);
+  }
+
+  /**
+   * Le menu du tray n'est reconstruit que si son contenu change (un menu ouvert se
+   * refermerait sinon sur certains bureaux), et au plus toutes les 2 s.
+   */
+  private updateTray(state: ShellState): void {
+    if (!this.tray) return;
+    const menu = trayMenu(state, new Date());
+    const total = state.lock.locked ? 0 : state.totalUnread;
+    const icon = trayIconName(total, this.store.get("preferences").trayCountStyle);
+    const signature = JSON.stringify(menu) + total + icon;
+    if (signature === this.traySignature) return;
+    // Verrouillage : le menu (comptes, non-lus, lecture en cours) disparaît sans attendre.
+    const lockChanged = state.lock.locked !== this.trayLocked;
+    this.trayLocked = state.lock.locked;
+    const wait = lockChanged ? 0 : this.trayDue - Date.now();
+    if (wait > 0) {
+      this.trayTimer ??= setTimeout(() => {
+        this.trayTimer = null;
+        if (!this.mainWindow.isDestroyed()) this.updateTray(this.shellState());
+      }, wait);
+      return;
+    }
+    this.traySignature = signature;
+    this.trayDue = Date.now() + TRAY_THROTTLE_MS;
+    this.tray.update(menu, total, icon, (action) => this.dispatchMenuAction(action));
   }
 
   private updateBadge(state: ShellState): void {
     const total = state.lock.locked ? 0 : state.totalUnread;
+    if (total === this.lastBadge) return;
+    this.lastBadge = total;
     app.setBadgeCount(total);
     this.mainWindow.setTitle(total > 0 ? `(${total}) ${PRODUCT_NAME}` : PRODUCT_NAME);
+  }
+
+  /**
+   * Quelqu'un regarde : fenêtre présentée et utilisateur là. Une vidéo regardée ou un appel
+   * écouté sans toucher au clavier n'est pas une absence : le compte affiché reste visible.
+   */
+  private updateAttended(): void {
+    const active = this.accounts.active();
+    const busy = active !== null && (this.calls.inCall(active) || Boolean(this.playback.forAccount(active, Date.now())?.playing));
+    if (this.accounts.setAttended(this.presence.isPresented() && (!this.presence.isAway() || busy))) this.applyAudio();
   }
 
   /** Son coupé pour un compte en Snooze caché, sauf appel ou lecture lancée par l'utilisateur. */
@@ -910,6 +1086,9 @@ export class Application {
       case "set-modal":
         this.accounts.setModal(command.open);
         if (!command.open) this.mainWindow.webContents.focus();
+        return;
+      case "presentation":
+        this.presence.setPresented(command.presented);
         return;
       case "resolve-link":
         this.links.resolve(command.accountId);
@@ -1097,11 +1276,13 @@ export class Application {
         if (patch.permissions) next.permissions = { ...account.permissions, ...patch.permissions };
         if (patch.proxy !== undefined) next.proxy = patch.proxy;
         if (patch.proxyMode !== undefined) next.proxyMode = patch.proxyMode === "manual" && !next.proxy ? account.proxyMode : patch.proxyMode;
+        if (patch.delivery !== undefined) next.delivery = patch.delivery;
         return next;
       })
     }));
     const after = this.accounts.account(id);
     if (!before || !after) return;
+    if (after.delivery !== before.delivery) this.economy.refresh();
     if (after.zoomPercent !== before.zoomPercent) this.views.setZoom(id, after.zoomPercent);
     if (after.proxyMode !== before.proxyMode || JSON.stringify(after.proxy) !== JSON.stringify(before.proxy)) {
       // Identifiants liés au serveur : un autre proxy ne reçoit jamais ceux du précédent.
@@ -1116,7 +1297,8 @@ export class Application {
     this.store.update("preferences", (current) => ({
       ...current,
       ...patch,
-      privacyVeil: { ...current.privacyVeil, ...patch.privacyVeil }
+      privacyVeil: { ...current.privacyVeil, ...patch.privacyVeil },
+      economy: { ...current.economy, ...patch.economy }
     }));
     const next = this.store.get("preferences");
     if (next.theme !== previous.theme) nativeTheme.themeSource = next.theme;
@@ -1141,11 +1323,14 @@ export class Application {
     }
     if (next.spellcheckMode !== previous.spellcheckMode || next.spellcheckLanguages.join() !== previous.spellcheckLanguages.join()) {
       const plan = this.spellcheckPlan();
-      for (const account of this.accounts.accounts()) applySpellcheck(this.sessionFor(account.id), plan);
+      // Sessions existantes seulement : celle d'un compte endormi reçoit le réglage à sa création.
+      for (const account of this.accounts.accounts()) if (hasAccountSession(account.id)) applySpellcheck(this.sessionFor(account.id), plan);
     }
     if (next.sidebarCollapsed !== previous.sidebarCollapsed) this.views.relayout();
     if (next.interfaceScale !== previous.interfaceScale) this.applyInterfaceScale();
     if (next.downloadsHistoryDays !== previous.downloadsHistoryDays) this.downloads.applyRetention();
+    if (next.awayHideMinutes !== previous.awayHideMinutes) this.presence.refresh();
+    if (JSON.stringify(next.economy) !== JSON.stringify(previous.economy)) this.economy.refresh();
     if (JSON.stringify(next.privacyVeil) !== JSON.stringify(previous.privacyVeil)) this.veil.applyAll();
     if (JSON.stringify(next.proxy) !== JSON.stringify(previous.proxy)) {
       if (previous.proxy.server && !sameServer(previous.proxy.server, next.proxy.server)) this.proxy.clearCredentials("global");
@@ -1390,7 +1575,12 @@ export class Application {
     ipcMain.on(CHANNELS.waNotify, (event, raw: unknown) => {
       const id = this.whatsappSender(event);
       const parsed = NotifyPayloadSchema.safeParse(raw);
-      if (id && parsed.success) void this.notifications.handle(id, event.sender.id, parsed.data);
+      if (id && parsed.success) {
+        void this.notifications.handle(id, event.sender.id, parsed.data).then((outcome) => {
+          // Pendant une relève du mode économie, une notification la prolonge.
+          if (outcome === "shown") this.economy.noteNotification(id);
+        });
+      }
     });
     ipcMain.on(CHANNELS.waNotificationClose, (event, raw: unknown) => {
       const id = this.whatsappSender(event);
@@ -1438,6 +1628,7 @@ export class Application {
         for (const pageId of this.playback.playingPagesExcept(id)) allWebContents.fromId(pageId)?.send(CHANNELS.waMediaControl, "pause");
       }
       this.applyAudio();
+      this.updateAttended();
       this.pushState();
     });
     ipcMain.handle(CHANNELS.waLabels, (event) => (this.whatsappSender(event) ? { voiceMessage: t("media.voiceMessage"), video: t("media.video"), product: PRODUCT_NAME } : null));
@@ -1467,7 +1658,9 @@ export class Application {
   private async checkForUpdates(): Promise<void> {
     if (!process.env.APPIMAGE || this.options.test) return;
     try {
-      const { checkAppImageUpdates } = await import("./updates");
+      // Bundle séparé (electron-updater) : chargé seulement pour l'AppImage.
+      const load = require;
+      const { checkAppImageUpdates } = load(path.join(__dirname, "updates.cjs")) as typeof import("./updates");
       await checkAppImageUpdates(this.log, (message) => this.addNotice({ id: "update", level: "info", message }));
     } catch (error) {
       this.log.warn("update-check-failed", error);

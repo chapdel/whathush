@@ -4,6 +4,7 @@
 // backgroundThrottling reste activé : le désactiver fausserait la Page Visibility API.
 
 import { WebContentsView, type BrowserWindow, type Rectangle, type RenderProcessGoneDetails, type Session, type WebContents } from "electron";
+import { CHANNELS } from "../../shared/channels";
 import type { Logger } from "../log";
 
 export interface ViewEvents {
@@ -239,6 +240,11 @@ export class ViewManager {
 
   reload(accountId: string): void {
     this.webContents(accountId)?.reload();
+  }
+
+  /** La page redonne son état de liaison (retour du réseau, sans rechargement). */
+  requestLinkState(accountId: string): void {
+    this.webContents(accountId)?.send(CHANNELS.waLinkStateRequest);
   }
 
   processId(accountId: string): number | null {

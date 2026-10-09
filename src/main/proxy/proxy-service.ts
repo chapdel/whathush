@@ -56,6 +56,10 @@ export class ProxyService {
       /** Pages d'un compte (vue et popups), pour la politique WebRTC. */
       pages(accountId: string): WebContents[];
       accountForPage(contents: WebContents): string | undefined;
+      /** Le compte a une page chargée (sinon le proxy s'appliquera à son réveil). */
+      live(accountId: string): boolean;
+      /** Sa session existe déjà (sinon rien à nettoyer, et rien à créer). */
+      hasSession(accountId: string): boolean;
       notifyAuthProblem(scope: ProxyScope, kind: "failed" | "missing"): void;
       /** Tests : faire passer aussi 127.0.0.1 par le proxy. */
       includeLoopback: boolean;
@@ -121,6 +125,7 @@ export class ProxyService {
    */
   private async forgetCachedAuth(scope: ProxyScope): Promise<void> {
     for (const account of this.deps.accounts()) {
+      if (!this.deps.hasSession(account.id)) continue;
       const proxy = this.effective(account.id);
       if (proxy.mode === "fixed" && proxy.scope === scope) await this.deps.sessionFor(account.id).clearAuthCache().catch(() => undefined);
     }
@@ -176,9 +181,11 @@ export class ProxyService {
     for (const page of this.deps.pages(accountId)) this.applyWebRtc(page, proxy);
   }
 
+  /** Comptes chargés seulement : un compte endormi reçoit son proxy à son réveil (prepare), sans qu'on crée sa session maintenant. */
   async applyAll(): Promise<void> {
     const used = new Set<ProxyScope>();
     for (const account of this.deps.accounts()) {
+      if (!this.deps.live(account.id)) continue;
       const proxy = this.effective(account.id);
       if (needsRelay(proxy) && proxy.mode === "fixed") used.add(proxy.scope);
       await this.apply(account.id).catch((error: unknown) => this.deps.log.warn("proxy-apply-failed", { accountId: account.id, error: String(error) }));

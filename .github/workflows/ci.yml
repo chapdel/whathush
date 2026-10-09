@@ -25,6 +25,8 @@ jobs:
       - run: npm run build
       - run: npx playwright test
       - run: node tests/native/run.mjs
+      # Seuils de ressources : processus, mémoire et processeur du socle, pages cachées au repos.
+      - run: node scripts/bench.mjs --check --scenario socle,hidden,minimized
       - uses: actions/upload-artifact@v4
         if: always()
         with:

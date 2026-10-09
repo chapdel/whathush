@@ -13,13 +13,16 @@ const dist = path.join(root, "dist");
 
 fs.rmSync(dist, { recursive: true, force: true });
 
+// Processus principal minifié ; les mises à jour de l'AppImage (electron-updater et ses
+// dépendances) dans un bundle séparé, chargé seulement par l'AppImage.
 await esbuild({
   absWorkingDir: root,
-  entryPoints: { "main/index": "src/main/index.ts" },
+  entryPoints: { "main/index": "src/main/index.ts", "main/updates": "src/main/updates.ts" },
   outdir: dist,
   // package.json déclare "type": "module" : le bundle CommonJS doit porter l'extension .cjs.
   outExtension: { ".js": ".cjs" },
   bundle: true,
+  minify: true,
   platform: "node",
   format: "cjs",
   target: "node22",
@@ -33,6 +36,7 @@ await esbuild({
   entryPoints: { "preload/shell": "src/preload/shell.ts", "preload/whatsapp": "src/preload/whatsapp.ts" },
   outdir: dist,
   bundle: true,
+  minify: true,
   platform: "browser",
   format: "cjs",
   target: "chrome140",

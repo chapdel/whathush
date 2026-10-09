@@ -23,7 +23,7 @@ export const DEFAULT_PERMISSIONS: AccountPermissions = {
 };
 
 export function emptyAccountsFile(): AccountsFile {
-  return { schemaVersion: 2, accounts: [], pendingPartitionDeletion: [] };
+  return { schemaVersion: 3, accounts: [], pendingPartitionDeletion: [] };
 }
 
 export interface NewAccountInput {
@@ -57,7 +57,8 @@ export function addAccount(
     permissions: { ...DEFAULT_PERMISSIONS },
     proxyMode: "inherit",
     proxy: null,
-    themeHintShown: false
+    themeHintShown: false,
+    delivery: "realtime"
   };
   return { file: { ...file, accounts: [...file.accounts, account] }, account };
 }

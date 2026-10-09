@@ -23,6 +23,8 @@ async function run(script) {
       WHATHUSH_TARGET_URL: fake.url,
       WHATHUSH_USER_DATA: userData,
       WHATHUSH_TRAY: "0",
+      // Absence relevée toutes les 300 ms (200 ms pendant l'absence) au lieu de 30 s.
+      WHATHUSH_TEST_TIMINGS: JSON.stringify({ presencePollMs: { present: 300, away: 200 } }),
       LANGUAGE: "fr_FR:fr",
       LANG: "fr_FR.UTF-8",
       LC_ALL: ""
@@ -50,6 +52,10 @@ check("pendant une modale : toutes les pages hidden", visibility.duringModal.a =
 check("après la modale : B de nouveau visible", visibility.afterModal.b === "visible" && visibility.afterModal.a === "hidden", visibility.afterModal);
 check("verrouillé : toutes les pages hidden", visibility.duringLock.a === "hidden" && visibility.duringLock.b === "hidden", visibility.duringLock);
 check("déverrouillé : B de nouveau visible", visibility.afterUnlock.b === "visible" && visibility.afterUnlock.a === "hidden", visibility.afterUnlock);
+check("fenêtre non présentée (réduite sous Wayland) : toutes les pages hidden", visibility.notPresented.a === "hidden" && visibility.notPresented.b === "hidden", visibility.notPresented);
+check("fenêtre de nouveau présentée : B visible", visibility.presentedAgain.b === "visible" && visibility.presentedAgain.a === "hidden", visibility.presentedAgain);
+check("absence : toutes les pages hidden", visibility.away.a === "hidden" && visibility.away.b === "hidden", visibility.away);
+check("retour : B de nouveau visible", visibility.back.b === "visible" && visibility.back.a === "hidden", visibility.back);
 check("Snooze : un son lancé par une page cachée reste coupé", visibility.hiddenPlayback.muted === true && visibility.hiddenPlayback.userStarted === false, visibility.hiddenPlayback);
 
 for (const { name, ok, detail } of checks) console.log(`${ok ? "✔" : "✘"} ${name}  ${JSON.stringify(detail)}`);

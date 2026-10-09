@@ -17,22 +17,25 @@ export function formatRemaining(until: Date, now: Date, timeZone?: string): stri
 }
 
 /** Symbole d'état d'un compte. */
-export function statusSymbol(account: Pick<AccountItem, "lifecycle" | "policy">): string {
-  if (account.lifecycle === "sleeping") return "○";
+export function statusSymbol(account: Pick<AccountItem, "lifecycle" | "policy" | "economy">): string {
   if (account.lifecycle === "needs_qr" || account.lifecycle === "crashed") return "!";
+  if (account.economy) return "◌";
+  if (account.lifecycle === "sleeping") return "○";
   if (account.policy.mode === "snoozed") return "◐";
   if (account.policy.mode === "calls-only") return "◑";
   return "●";
 }
 
 /** Indication courte à droite du nom : appel, non-lus, Snooze restant, veille… */
-export function statusHint(account: Pick<AccountItem, "lifecycle" | "policy" | "unread" | "inCall">, now: Date): string {
+export function statusHint(account: Pick<AccountItem, "lifecycle" | "policy" | "unread" | "inCall" | "economy">, now: Date): string {
   // L'appel en cours se voit partout, y compris dans le tray.
   if (account.inCall) return t("status.inCall");
-  if (account.lifecycle === "sleeping") return t("status.sleeping");
   if (account.lifecycle === "offline") return t("status.offline");
   if (account.lifecycle === "needs_qr") return t("status.qrToScan");
   if (account.lifecycle === "crashed") return t("status.error");
+  if (account.economy?.relaying) return t("status.relaying");
+  if (account.economy?.dozing) return account.unread ? t("common.separator", { a: t("status.economy"), b: String(account.unread) }) : t("status.economy");
+  if (account.lifecycle === "sleeping") return t("status.sleeping");
   if (account.policy.mode !== "normal") {
     const label = account.policy.mode === "snoozed" ? t("status.snooze") : t("status.callsOnlyShort");
     return account.policy.until ? t("common.separator", { a: label, b: formatRemaining(new Date(account.policy.until), now) }) : label;

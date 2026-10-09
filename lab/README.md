@@ -100,7 +100,7 @@ Record each result with its date and environment (desktop, Wayland or X11). Each
 | 19 | IME / emoji | `start:wayland`, then `start`; typing with fcitx5 / ibus, the desktop emoji picker | characters entered correctly |
 | 20 | 72 h endurance | leave it running with 3 accounts | memory curve in `metrics-*.csv` |
 
-Tests 21 to 28 cover features of WhatHush itself: run them with the application (`npm start` at the repository root), not with the lab.
+Tests 21 to 34 cover features of WhatHush itself: run them with the application (`npm start` at the repository root), not with the lab.
 
 | # | Test | How | What to look at |
 |---|---|---|---|
@@ -112,6 +112,12 @@ Tests 21 to 28 cover features of WhatHush itself: run them with the application 
 | 26 | Proxy | save proxy credentials, then call through the proxy | credentials encrypted by KWallet / GNOME Keyring; calls work behind the proxy. Fallback: credentials kept in memory, warning about calls |
 | 27 | Clipboard | paste a screenshot, copy an image to GIMP, primary selection; on Wayland, then X11 | everything works. Fallback: adjust the allowlist (`clipboard-read`) |
 | 28 | WhatsApp theme | set WhatsApp's theme to "System default" | where WhatsApp stores the setting. Fallback: the in-app hint only (already in place) |
+| 29 | Minimized window (Wayland) | on KDE Wayland, open a chat, minimize WhatHush from the title bar or the taskbar; X sends a message | `window-not-presented` in the log within about 15 s; no blue ticks on X's phone; restoring logs `window-presented` and shows the chat |
+| 30 | Away | open a chat, stay idle 5 min (or lock the screen); X sends a message | `user-away`, no blue ticks, notification still shown; `user-back` on the first input |
+| 31 | Saver mode | set a hidden account to *Saver mode*; receive messages while it sleeps | `economy-doze`, then `account-relay` at the chosen interval; WhatsApp's own notifications during the relay, otherwise a "New messages · N unread" digest; incoming calls are not expected while asleep |
+| 32 | Recycling | leave two accounts running for a day or more, then step away | `recycle` for a swollen hidden account; the account reconnects without a QR code and no notification is lost |
+| 33 | Real consumption | use WhatHush normally for a few days | `perf` lines in `logs/app.log` every 5 min (memory and CPU per account, window state); compare with 0.2.0 |
+| 34 | Network change | cut the network for a minute, or switch Wi-Fi or VPN; X sends a message meanwhile | `network-offline` then `network-online`; the account is connected again without a reload (`restore-fallback-reload` only if the page stays silent for 20 s) and X's message arrives |
 
 GNOME-specific tests (and native X11 variants) need another machine or a VM if you are on KDE Plasma / Wayland.
 

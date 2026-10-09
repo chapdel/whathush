@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AccountManager } from "../../src/main/accounts/account-manager";
+import { AccountManager, QUEUE_MAX_WAIT_MS, RESTORE_FALLBACK_MS, UNREAD_HOLD_MS } from "../../src/main/accounts/account-manager";
 import { CallCoordinator } from "../../src/main/calls/call-coordinator";
 import { ADAPTER_TIMEOUT_MS } from "../../src/main/core/adapter";
 import type { Logger } from "../../src/main/log";
@@ -15,13 +15,19 @@ const silent: Logger = { dir: "", debug: () => undefined, info: () => undefined,
 
 class FakeViews {
   readonly loaded = new Set<string>();
+  readonly created: string[] = [];
   readonly reloads: string[] = [];
+  readonly linkRequests: string[] = [];
   shownId: string | null = null;
   has = (id: string) => this.loaded.has(id);
-  create = (id: string) => void this.loaded.add(id);
+  create = (id: string) => {
+    this.loaded.add(id);
+    this.created.push(id);
+  };
   destroy = (id: string) => void this.loaded.delete(id);
   show = (id: string | null) => void (this.shownId = id);
   reload = (id: string) => void this.reloads.push(id);
+  requestLinkState = (id: string) => void this.linkRequests.push(id);
   load = () => undefined;
 }
 
@@ -60,7 +66,7 @@ afterEach(() => {
 const lifecycle = (id: string) => manager.runtime(id)?.lifecycle;
 
 describe("AccountManager — correctifs de la revue", () => {
-  it("n°2 : hors ligne avec un adaptateur muet, un rechargement réussi reconnecte le compte", () => {
+  it("n°2 : hors ligne avec un adaptateur muet, le retour du réseau reconnecte le compte sans le recharger", () => {
     const { id } = manager.add({ label: "Travail" });
     manager.finishedLoad(id);
     vi.advanceTimersByTime(ADAPTER_TIMEOUT_MS);
@@ -69,10 +75,8 @@ describe("AccountManager — correctifs de la revue", () => {
     manager.networkChanged(false);
     expect(lifecycle(id)).toBe("offline");
     manager.networkChanged(true);
-    expect(views.reloads).toContain(id);
-    manager.finishedLoad(id);
-    vi.advanceTimersByTime(ADAPTER_TIMEOUT_MS);
     expect(lifecycle(id)).toBe("ready");
+    expect(views.reloads).toEqual([]);
   });
 
   it("n°2 : un échec de chargement annule le délai de l'adaptateur", () => {
@@ -138,5 +142,194 @@ describe("AccountManager — correctifs de la revue", () => {
     release();
     await removal;
     expect(JSON.parse(fs.readFileSync(path.join(dir, "accounts.json"), "utf8")).pendingPartitionDeletion).toEqual([id]);
+  });
+});
+
+describe("AccountManager — ressources", () => {
+  const ids = () => manager.accounts().map((account) => account.id);
+
+  /** Trois comptes enregistrés, puis un démarrage à froid de l'application. */
+  function restart(options: { deferMs?: number } = {}): string[] {
+    manager.add({ label: "A" });
+    manager.add({ label: "B" });
+    manager.add({ label: "C" });
+    manager.flush();
+    views = new FakeViews();
+    manager = new AccountManager({
+      store,
+      views: () => views as never,
+      calls: new CallCoordinator(),
+      sessionFor: () => ({}) as never,
+      targetUrl: "https://web.whatsapp.com/",
+      log: silent,
+      notify: (notice) => notices.push(notice),
+      pageGone: () => undefined,
+      accountGone: () => undefined
+    });
+    manager.start(options);
+    return ids();
+  }
+
+  it("démarre les comptes un par un : le suivant quand le précédent est installé, au plus tard après 30 s", () => {
+    const [a, b, c] = restart() as [string, string, string];
+    const active = manager.active();
+    expect(views.created).toEqual([active]);
+    // Le compte affiché a affiché ses conversations : le suivant démarre peu après.
+    manager.linkState(active!, { linking: false, chats: true });
+    vi.advanceTimersByTime(2000);
+    expect(views.created).toHaveLength(2);
+    // Le deuxième ne répond pas : le troisième n'attend pas plus de 30 s.
+    vi.advanceTimersByTime(QUEUE_MAX_WAIT_MS);
+    expect(new Set(views.created)).toEqual(new Set([a, b, c]));
+  });
+
+  it("sessions effacées pendant un chargement de la file : le compte affiché est rechargé aussitôt", async () => {
+    restart();
+    const active = manager.active() as string;
+    expect(views.created).toEqual([active]);
+    await manager.resetAllSessions();
+    expect(views.created.filter((id) => id === active)).toHaveLength(2);
+    // Les autres attendent leur tour en « chargement », et se chargent si on les affiche.
+    const waiting = ids().find((id) => id !== active && !views.has(id)) as string;
+    expect(lifecycle(waiting)).toBe("loading");
+    manager.switchTo(waiting);
+    expect(views.has(waiting)).toBe(true);
+  });
+
+  it("un compte encore dans la file se charge dès qu'on l'affiche ou qu'on le recharge, sans attendre son tour", () => {
+    restart();
+    const active = manager.active() as string;
+    const [first, second] = ids().filter((id) => id !== active) as [string, string];
+    expect(views.created).toEqual([active]);
+    manager.switchTo(first);
+    expect(views.created).toEqual([active, first]);
+    expect(views.shownId).toBe(first);
+    manager.reload(second);
+    expect(views.created).toEqual([active, first, second]);
+    // La file ne les recharge pas une seconde fois.
+    vi.advanceTimersByTime(3 * QUEUE_MAX_WAIT_MS);
+    expect(views.created).toHaveLength(3);
+  });
+
+  it("lancement dans la barre système : rien n'est chargé avant le délai, sauf si la fenêtre s'affiche", () => {
+    restart({ deferMs: 20_000 });
+    expect(views.created).toEqual([]);
+    manager.expedite();
+    expect(views.created).toEqual([manager.active()]);
+  });
+
+  it("réseau revenu : une page chargée redonne son état sans rechargement, rechargée seulement si elle se tait", () => {
+    const { id } = manager.add({ label: "Travail" });
+    manager.linkState(id, { linking: false, chats: true });
+    manager.networkChanged(false);
+    expect(lifecycle(id)).toBe("offline");
+    manager.networkChanged(true);
+    expect(views.linkRequests).toEqual([id]);
+    expect(views.reloads).toEqual([]);
+    manager.linkState(id, { linking: false, chats: true });
+    expect(lifecycle(id)).toBe("ready");
+    vi.advanceTimersByTime(RESTORE_FALLBACK_MS);
+    expect(views.reloads).toEqual([]);
+
+    // Sans réponse de la page : rechargée après le délai de secours.
+    manager.networkChanged(false);
+    manager.networkChanged(true);
+    vi.advanceTimersByTime(RESTORE_FALLBACK_MS);
+    expect(views.reloads).toEqual([id]);
+  });
+
+  it("réseau revenu après un échec de chargement : la page est rechargée", () => {
+    const { id } = manager.add({ label: "Travail" });
+    manager.failedLoad(id, -106, "ERR_INTERNET_DISCONNECTED");
+    manager.networkChanged(true);
+    expect(views.reloads).toEqual([id]);
+    expect(views.linkRequests).toEqual([]);
+  });
+
+  it("personne devant la fenêtre : la vue est masquée, puis réaffichée", () => {
+    const { id } = manager.add({ label: "Travail" });
+    expect(views.shownId).toBe(id);
+    manager.setAttended(false);
+    expect(views.shownId).toBeNull();
+    manager.setAttended(true);
+    expect(views.shownId).toBe(id);
+  });
+
+  it("mode économie : endormi sans perdre ses non-lus, rechargé à la relève, réveillé dès qu'on l'affiche", () => {
+    const a = manager.add({ label: "A" });
+    const b = manager.add({ label: "B" });
+    manager.switchTo(a.id);
+    manager.titleUpdated(b.id, "(3) WhatsApp");
+    expect(manager.doze(b.id)).toBe(true);
+    expect(views.has(b.id)).toBe(false);
+    expect(manager.isDozing(b.id)).toBe(true);
+    expect(manager.runtime(b.id)).toMatchObject({ lifecycle: "sleeping", unread: 3 });
+    // Rien n'est écrit : le compte n'est pas « en veille » pour l'utilisateur.
+    expect(manager.account(b.id)?.sleeping).toBe(false);
+
+    manager.relay(b.id);
+    expect(views.has(b.id)).toBe(true);
+    expect(manager.isDozing(b.id)).toBe(false);
+    expect(manager.runtime(b.id)?.unread).toBe(3);
+
+    manager.doze(b.id);
+    manager.switchTo(b.id);
+    expect(views.has(b.id)).toBe(true);
+    expect(views.shownId).toBe(b.id);
+  });
+
+  it("relève : les non-lus gardés ne passent pas par 0 pendant le chargement ; la page fait foi ensuite", () => {
+    const a = manager.add({ label: "A" });
+    const b = manager.add({ label: "B" });
+    manager.switchTo(a.id);
+    manager.titleUpdated(b.id, "(3) WhatsApp");
+    manager.doze(b.id);
+    manager.relay(b.id);
+    // Premier titre de la page, sans compte : rien ne change (badge stable).
+    manager.titleUpdated(b.id, "WhatsApp");
+    expect(manager.runtime(b.id)?.unread).toBe(3);
+    manager.titleUpdated(b.id, "(5) WhatsApp");
+    expect(manager.runtime(b.id)?.unread).toBe(5);
+
+    // Tout lu depuis le téléphone : la page installée ne montre plus de compte, et le dit.
+    manager.doze(b.id);
+    manager.relay(b.id);
+    manager.titleUpdated(b.id, "WhatsApp");
+    manager.linkState(b.id, { linking: false, chats: true });
+    expect(manager.runtime(b.id)?.unread).toBe(5);
+    vi.advanceTimersByTime(UNREAD_HOLD_MS);
+    expect(manager.runtime(b.id)?.unread).toBe(0);
+  });
+
+  it("jamais d'économie pendant un appel ; une veille manuelle l'emporte", () => {
+    const calls = new CallCoordinator();
+    manager = new AccountManager({
+      store,
+      views: () => views as never,
+      calls,
+      sessionFor: () => ({}) as never,
+      targetUrl: "https://web.whatsapp.com/",
+      log: silent,
+      notify: () => undefined,
+      pageGone: () => undefined,
+      accountGone: () => undefined
+    });
+    const a = manager.add({ label: "A" });
+    calls.onMedia(a.id, 1, { source: "getUserMedia", event: "start", trackKind: "audio" });
+    expect(manager.doze(a.id)).toBe(false);
+    calls.resetAccount(a.id);
+    manager.sleep(a.id);
+    manager.relay(a.id);
+    expect(views.has(a.id)).toBe(false);
+  });
+
+  it("recyclage : la page est recréée, non-lus conservés", () => {
+    const { id } = manager.add({ label: "Travail" });
+    manager.titleUpdated(id, "(2) WhatsApp");
+    const before = views.created.length;
+    manager.recycle(id);
+    expect(views.created.length).toBe(before + 1);
+    expect(manager.runtime(id)).toMatchObject({ lifecycle: "loading", unread: 2 });
+    expect(manager.isDozing(id)).toBe(false);
   });
 });

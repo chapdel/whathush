@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>WhatsApp</title>
+<style>
+  body { margin: 0; height: 100vh; font: 14px system-ui, sans-serif; }
+  #app { height: 100%; }
+  .layout { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
+  #pane-side { overflow: auto; border-right: 1px solid #ddd; }
+  .row { display: flex; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #eee; }
+  .pic { width: 40px; height: 40px; border-radius: 50%; background: #9ab; flex: none; }
+  #main { display: flex; flex-direction: column; min-width: 0; }
+  .messages { flex: 1; overflow: auto; padding: 12px; }
+  .msg { margin: 4px 0; padding: 6px 10px; border-radius: 8px; background: #eef; max-width: 60%; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// Page synthétique « WhatsApp connecté » : DOM de taille réaliste (environ 10 000 nœuds),
+// activité continue (présence, horodatages, réordonnancement), WebSocket maintenue.
+const CHATS = Number(new URLSearchParams(location.search).get("chats") || 300);
+const MESSAGES = 200;
+const app = document.getElementById("app");
+function row(i) {
+  return `<div class="row" data-testid="cell-frame-container" role="listitem"><span class="pic" data-testid="avatar"></span>
+    <div data-testid="cell-frame-title"><div><span dir="auto" title="Chat ${i}"><span>Chat ${i}</span></span></div>
+    <div data-testid="cell-frame-primary-detail"><span class="time">${10 + (i % 12)}:${String(i % 60).padStart(2, "0")}</span></div></div>
+    <div data-testid="cell-frame-secondary"><span><span dir="ltr"><span>Dernier message du chat ${i} avec un peu de texte</span></span></span>
+    <div><span><span data-testid="icon-unread"></span></span><span><span aria-label="non lu">${i % 7}</span></span></div></div></div>`;
+}
+function message(i) {
+  return `<div class="msg" data-pre-plain-text="[10:${String(i % 60).padStart(2, "0")}, 05/10/2026] X: " data-testid="msg-container"><div><div><span dir="ltr"><span>Message ${i} : du texte de conversation ordinaire.</span></span></div>
+    <div><span class="time">10:${String(i % 60).padStart(2, "0")}</span><span data-testid="msg-dblcheck"></span></div></div></div>`;
+}
+app.innerHTML = `<div class="layout"><div id="side"><div id="pane-side" data-testid="chat-list">${Array.from({ length: CHATS }, (_, i) => row(i)).join("")}</div></div>
+  <div id="main"><header data-testid="conversation-header">Chat 0</header><div class="messages">${Array.from({ length: MESSAGES }, (_, i) => message(i)).join("")}</div></div></div>`;
+
+const pane = document.getElementById("pane-side");
+let unread = 0;
+let tick = 0;
+// Présence et horodatages : quelques nœuds texte remplacés chaque seconde.
+setInterval(() => {
+  tick += 1;
+  for (let k = 0; k < 5; k += 1) {
+    const rows = pane.children;
+    const r = rows[Math.floor(Math.random() * rows.length)];
+    const time = r && r.querySelector(".time");
+    if (time) time.textContent = `${10 + (tick % 12)}:${String(tick % 60).padStart(2, "0")}`;
+  }
+  // Un chat remonte en tête (nouveau message) toutes les 3 s.
+  if (tick % 3 === 0) {
+    const rows = pane.children;
+    const r = rows[Math.floor(Math.random() * rows.length)];
+    if (r) pane.insertBefore(r, pane.firstChild);
+  }
+  // Un message arrive dans la conversation ouverte toutes les 10 s.
+  if (tick % 10 === 0) {
+    const list = document.querySelector(".messages");
+    list.insertAdjacentHTML("beforeend", message(MESSAGES + tick));
+    list.firstElementChild.remove();
+    unread += 1;
+    document.title = `(${unread}) WhatsApp`;
+  }
+}, 1000);
+
+// Connexion temps réel maintenue, comme WhatsApp (ping toutes les 20 s).
+try {
+  const ws = new WebSocket(location.origin.replace(/^http/, "ws") + "/ws");
+  ws.onopen = () => setInterval(() => ws.readyState === 1 && ws.send("ping"), 20000);
+} catch {}
+</script>
+</body>
+</html>

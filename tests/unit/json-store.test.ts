@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { addAccount } from "../../src/main/core/accounts";
+import { AppStore } from "../../src/main/storage/app-store";
 import { accountsDocument, preferencesDocument } from "../../src/main/storage/documents";
 import { readJsonDocument, writeJsonDocument, type JsonDocument } from "../../src/main/storage/json-store";
 
@@ -33,7 +34,7 @@ describe("readJsonDocument / writeJsonDocument", () => {
   });
 
   it("refuse d'écrire des données invalides", () => {
-    const invalid = { ...accountsDocument.defaults(), schemaVersion: 3 } as unknown as ReturnType<typeof accountsDocument.defaults>;
+    const invalid = { ...accountsDocument.defaults(), schemaVersion: 99 } as unknown as ReturnType<typeof accountsDocument.defaults>;
     expect(() => writeJsonDocument(file, accountsDocument, invalid)).toThrow();
     expect(fs.existsSync(file)).toBe(false);
   });
@@ -132,15 +133,28 @@ describe("migration v1 → v2 des fichiers de l'application", () => {
     fs.writeFileSync(file, JSON.stringify(V1_ACCOUNTS));
     const result = readJsonDocument(file, accountsDocument);
     expect(result.status).toBe("migrated");
-    expect(result.data.schemaVersion).toBe(2);
+    expect(result.data.schemaVersion).toBe(3);
     expect(result.data.accounts[0]).toEqual({
       ...V1_ACCOUNTS.accounts[0],
       zoomPercent: 100,
       permissions: { microphone: "allow", camera: "allow", location: "deny", screenShare: "ask" },
       proxyMode: "inherit",
       proxy: null,
-      themeHintShown: true
+      themeHintShown: true,
+      delivery: "realtime"
     });
+  });
+
+  it("v2 → v3 : chaque compte reçoit ses messages en continu, rien d'autre ne change", () => {
+    fs.writeFileSync(file, JSON.stringify(V1_ACCOUNTS));
+    const v2 = { ...readJsonDocument(file, accountsDocument).data, schemaVersion: 2 } as Record<string, unknown>;
+    v2.accounts = (v2.accounts as Array<Record<string, unknown>>).map(({ delivery: _delivery, ...account }) => account);
+    fs.writeFileSync(file, JSON.stringify(v2));
+    const result = readJsonDocument(file, accountsDocument);
+    expect(result.status).toBe("migrated");
+    expect(result.data.schemaVersion).toBe(3);
+    expect(result.data.accounts.map((account) => account.delivery)).toEqual(["realtime"]);
+    expect(result.data.accounts[0]?.label).toBe(V1_ACCOUNTS.accounts[0]?.label);
   });
 
   it("garde le français et le correcteur déjà choisi d'une installation existante", () => {
@@ -150,7 +164,7 @@ describe("migration v1 → v2 des fichiers de l'application", () => {
     expect(result.status).toBe("migrated");
     expect(result.data).toMatchObject({
       ...V1_PREFERENCES,
-      schemaVersion: 2,
+      schemaVersion: 3,
       language: "fr",
       interfaceScale: 100,
       spellcheckMode: "custom",
@@ -170,5 +184,30 @@ describe("migration v1 → v2 des fichiers de l'application", () => {
 
   it("une installation neuve suit la langue du système", () => {
     expect(preferencesDocument.defaults().language).toBe("system");
+  });
+
+  it("v2 → v3 : WhatsApp masqué après 5 min d'absence, mode économie à 30 min sans relève dans le tray", () => {
+    const prefs = path.join(dir, "preferences.json");
+    const { awayHideMinutes: _away, economy: _economy, ...v2 } = { ...preferencesDocument.defaults(), language: "fr", spellcheckMode: "off" };
+    fs.writeFileSync(prefs, JSON.stringify({ ...v2, schemaVersion: 2 }));
+    const result = readJsonDocument(prefs, preferencesDocument);
+    expect(result.status).toBe("migrated");
+    expect(result.data).toMatchObject({ schemaVersion: 3, language: "fr", spellcheckMode: "off", awayHideMinutes: 5, economy: { intervalMinutes: 30, inTray: false } });
+  });
+});
+
+describe("fichiers temporaires d'une écriture interrompue", () => {
+  it("supprimés au démarrage après une heure, jamais les autres fichiers", () => {
+    const stale = path.join(dir, "accounts.json.737087.1791235820265.tmp");
+    const recent = path.join(dir, "preferences.json.42.1791235820265.tmp");
+    fs.writeFileSync(stale, "{}");
+    fs.writeFileSync(recent, "{}");
+    fs.writeFileSync(path.join(dir, "notes.tmp"), "garder");
+    const old = new Date(Date.now() - 2 * 60 * 60_000);
+    fs.utimesSync(stale, old, old);
+    new AppStore(dir, { dir, debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined });
+    expect(fs.existsSync(stale)).toBe(false);
+    expect(fs.existsSync(recent)).toBe(true);
+    expect(fs.existsSync(path.join(dir, "notes.tmp"))).toBe(true);
   });
 });

@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BUNDLED_DICTIONARIES, bundledDictionaryFor, spellcheckPlan, systemDictionary } from "../../src/main/core/spellcheck";
+
+vi.mock("electron", () => ({ desktopCapturer: {}, session: {} }));
+const { applySpellcheck } = await import("../../src/main/sessions/session-factory");
 
 const AVAILABLE = ["de", "de-DE", "en-AU", "en-GB", "en-US", "es", "es-ES", "fr", "fr-FR", "it", "pt-BR"];
 
@@ -38,5 +41,15 @@ describe("correcteur", () => {
     const notice = fs.readFileSync(path.join(dir, "NOTICE.txt"), "utf8");
     expect(notice).toContain("Mozilla Public License Version 2.0");
     expect(notice).toContain("Kevin Atkinson");
+  });
+
+  it("désactivé : aucune langue, sinon Chromium charge quand même le dictionnaire de l'interface", () => {
+    const session = { setSpellCheckerDictionaryDownloadURL: vi.fn(), setSpellCheckerEnabled: vi.fn(), setSpellCheckerLanguages: vi.fn() };
+    applySpellcheck(session as never, { languages: [], allowGoogle: false });
+    expect(session.setSpellCheckerEnabled).toHaveBeenCalledWith(false);
+    expect(session.setSpellCheckerLanguages).toHaveBeenCalledWith([]);
+    applySpellcheck(session as never, { languages: ["fr"], allowGoogle: false });
+    expect(session.setSpellCheckerEnabled).toHaveBeenLastCalledWith(true);
+    expect(session.setSpellCheckerLanguages).toHaveBeenLastCalledWith(["fr"]);
   });
 });

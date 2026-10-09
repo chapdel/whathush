@@ -43,6 +43,7 @@ export class AppStore extends EventEmitter<{ change: [DocumentKey] }> {
     private readonly log: Logger
   ) {
     super();
+    this.purgeStaleTemporaryFiles();
     this.data = {
       accounts: this.load("accounts"),
       preferences: this.load("preferences"),
@@ -73,6 +74,31 @@ export class AppStore extends EventEmitter<{ change: [DocumentKey] }> {
         break;
     }
     return result.data;
+  }
+
+  /**
+   * Fichiers temporaires d'une écriture interrompue (arrêt brutal entre l'écriture et le
+   * renommage) : jamais relus, supprimés après une heure.
+   */
+  private purgeStaleTemporaryFiles(now = Date.now()): void {
+    let names: string[] = [];
+    try {
+      names = fs.readdirSync(this.dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      if (!/\.json\.\d+\.\d+\.tmp$/.test(name)) continue;
+      const file = path.join(this.dir, name);
+      try {
+        if (now - fs.statSync(file).mtimeMs > 60 * 60_000) {
+          fs.rmSync(file, { force: true });
+          this.log.info("store-temporary-removed", { file: name });
+        }
+      } catch {
+        // disparu entre-temps
+      }
+    }
   }
 
   get<K extends DocumentKey>(key: K): Documents[K] {

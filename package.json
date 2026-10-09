@@ -1,6 +1,6 @@
 {
   "name": "whathush",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Client desktop Linux multi-comptes pour WhatsApp Web (projet indépendant, non affilié à WhatsApp LLC ni à Meta Platforms)",
   "type": "module",
@@ -15,8 +15,10 @@
     "dist": "npm run build && electron-builder --linux AppImage deb --publish never",
     "dist:all": "npm run build && electron-builder --linux AppImage deb rpm pacman tar.gz --publish never",
     "test:native": "npm run build && node tests/native/run.mjs",
+    "test:kwin": "npm run build && node tests/native/kwin-minimize.mjs",
     "screenshots": "npm run build && playwright test --config playwright.screenshots.config.ts",
-    "demo": "npm run build && node scripts/fake-whatsapp.mjs"
+    "demo": "npm run build && node scripts/fake-whatsapp.mjs",
+    "bench": "npm run build && node scripts/bench.mjs"
   },
   "devDependencies": {
     "@electron/fuses": "2.1.3",

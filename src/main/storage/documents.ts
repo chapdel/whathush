@@ -30,7 +30,7 @@ export const FILE_NAMES = {
 
 export const accountsDocument: JsonDocument<AccountsFile> = {
   schema: AccountsFileSchema,
-  currentVersion: 2,
+  currentVersion: 3,
   migrations: {
     // v1 → v2 : zoom, permissions, proxy et aide du thème, par compte.
     1: (data) => ({
@@ -47,14 +47,23 @@ export const accountsDocument: JsonDocument<AccountsFile> = {
             themeHintShown: true
           }))
         : data.accounts
+    }),
+    // v2 → v3 : réception des messages (en continu, ou par relèves en mode économie).
+    2: (data) => ({
+      ...data,
+      schemaVersion: 3,
+      accounts: Array.isArray(data.accounts) ? data.accounts.map((account: Record<string, unknown>) => ({ ...account, delivery: "realtime" })) : data.accounts
     })
   },
   defaults: emptyAccountsFile
 };
 
+/** Absence au-delà de laquelle WhatsApp est masqué (minutes). */
+export const DEFAULT_AWAY_HIDE_MINUTES = 5;
+
 export function defaultPreferences(): Preferences {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     launchAtLogin: false,
     closeToTray: true,
     startMinimized: false,
@@ -72,13 +81,15 @@ export function defaultPreferences(): Preferences {
     privacyVeil: { onBlur: false, onScreenShare: false, blurMessages: false },
     proxy: { mode: "system", server: null },
     trayCountStyle: "number",
-    exclusivePlayback: false
+    exclusivePlayback: false,
+    awayHideMinutes: DEFAULT_AWAY_HIDE_MINUTES,
+    economy: { intervalMinutes: 30, inTray: false }
   };
 }
 
 export const preferencesDocument: JsonDocument<Preferences> = {
   schema: PreferencesSchema,
-  currentVersion: 2,
+  currentVersion: 3,
   migrations: {
     // v1 → v2 : langue, échelle, correcteur, historique, voile, proxy, tray, lecture.
     1: (data) => {
@@ -99,6 +110,11 @@ export const preferencesDocument: JsonDocument<Preferences> = {
         trayCountStyle: defaults.trayCountStyle,
         exclusivePlayback: defaults.exclusivePlayback
       };
+    },
+    // v2 → v3 : WhatsApp masqué pendant une absence (activé), mode économie (relèves).
+    2: (data) => {
+      const defaults = defaultPreferences();
+      return { ...data, schemaVersion: 3, awayHideMinutes: defaults.awayHideMinutes, economy: defaults.economy };
     }
   },
   defaults: defaultPreferences

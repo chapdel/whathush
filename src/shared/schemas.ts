@@ -129,6 +129,13 @@ export type AccountProxyMode = z.infer<typeof AccountProxyModeSchema>;
 /** Zoom par compte, en pourcentage, par paliers de 10. */
 export const ZoomPercentSchema = z.int().min(50).max(200).refine((value) => value % 10 === 0, "palier de 10 %");
 
+/**
+ * Réception des messages d'un compte : en continu (WhatsApp reste chargé), ou par
+ * relèves (mode économie : le compte caché dort et se réveille à intervalle régulier).
+ */
+export const DeliverySchema = z.enum(["realtime", "periodic"]);
+export type Delivery = z.infer<typeof DeliverySchema>;
+
 export const AccountConfigSchema = z
   .strictObject({
     id: z.uuid(),
@@ -153,7 +160,8 @@ export const AccountConfigSchema = z
     proxyMode: AccountProxyModeSchema,
     proxy: ProxyServerSchema.nullable(),
     /** L'aide « thème de WhatsApp » a été montrée pour ce compte. */
-    themeHintShown: z.boolean()
+    themeHintShown: z.boolean(),
+    delivery: DeliverySchema
   })
   .refine((account) => account.partition === partitionFor(account.id), {
     message: "partition incohérente avec l'identifiant du compte",
@@ -164,7 +172,7 @@ export type AccountConfig = z.infer<typeof AccountConfigSchema>;
 
 export const AccountsFileSchema = z
   .strictObject({
-    schemaVersion: z.literal(2),
+    schemaVersion: z.literal(3),
     accounts: z.array(AccountConfigSchema).max(MAX_ACCOUNTS),
     /** Partitions à supprimer au prochain démarrage. */
     pendingPartitionDeletion: z.array(z.uuid())
@@ -197,8 +205,19 @@ export const PrivacyVeilSchema = z.strictObject({
 });
 export type PrivacyVeil = z.infer<typeof PrivacyVeilSchema>;
 
+/** Intervalle des relèves du mode économie, en minutes. */
+export const EconomyIntervalSchema = z.union([z.literal(15), z.literal(30), z.literal(60)]);
+export type EconomyInterval = z.infer<typeof EconomyIntervalSchema>;
+
+export const EconomySchema = z.strictObject({
+  intervalMinutes: EconomyIntervalSchema,
+  /** Dans la barre système, tous les comptes passent en relèves. */
+  inTray: z.boolean()
+});
+export type Economy = z.infer<typeof EconomySchema>;
+
 export const PreferencesSchema = z.strictObject({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   launchAtLogin: z.boolean(),
   closeToTray: z.boolean(),
   startMinimized: z.boolean(),
@@ -218,7 +237,10 @@ export const PreferencesSchema = z.strictObject({
   proxy: GlobalProxySchema,
   trayCountStyle: TrayCountStyleSchema,
   /** Démarrer un média met en pause ceux des autres comptes. */
-  exclusivePlayback: z.boolean()
+  exclusivePlayback: z.boolean(),
+  /** Inactivité (minutes) après laquelle WhatsApp est masqué ; 0 = jamais. */
+  awayHideMinutes: z.int().min(0).max(240),
+  economy: EconomySchema
 });
 export type Preferences = z.infer<typeof PreferencesSchema>;
 

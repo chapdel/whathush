@@ -118,6 +118,38 @@ export class NotificationManager {
     return "shown";
   }
 
+  /**
+   * Mode économie : une relève a apporté des non-lus sans qu'aucune notification ne
+   * s'affiche (WhatsApp ne notifie pas toujours ce qu'il synchronise). Même politique
+   * que les messages ; aucun aperçu (on ne connaît que le nombre de non-lus).
+   */
+  digest(accountId: string, unread: number): NotifyOutcome {
+    const account = this.deps.account(accountId);
+    const policy = this.deps.policy(accountId);
+    if (!account || !policy || !policy.notifyMessages) return account?.notifications.enabled ? "dropped-policy" : "dropped-disabled";
+    const title = account.label;
+    const body = t("notification.digest", { count: unread });
+    const silent = !account.notifications.sound;
+    if (this.deps.sink) {
+      this.deps.sink({ accountId, webContentsId: -1, id: -1, title, body, silent, isCall: false, hasIcon: false });
+      return "shown";
+    }
+    if (!Notification.isSupported()) return "dropped-disabled";
+    const key = `digest:${accountId}`;
+    this.live.get(key)?.notification.close();
+    const notification = new Notification({ title, body, silent, urgency: "normal" });
+    this.live.set(key, { accountId, webContentsId: -1, notification });
+    notification.on("click", () => {
+      this.deps.log.info("notification-click", { accountId, digest: true });
+      this.deps.open(accountId, -1, -1);
+    });
+    notification.on("close", () => {
+      if (this.live.get(key)?.notification === notification) this.live.delete(key);
+    });
+    notification.show();
+    return "shown";
+  }
+
   close(webContentsId: number, notificationId: number): void {
     const key = this.key(webContentsId, notificationId);
     this.pending.delete(key);

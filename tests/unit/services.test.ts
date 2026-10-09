@@ -50,7 +50,7 @@ function fakeStore(preferences: Preferences = defaultPreferences()) {
 }
 
 function account(id: string, proxy: AccountConfig["proxy"], mode: AccountConfig["proxyMode"] = "manual"): AccountConfig {
-  return { id, label: id === A ? "Travail" : "Perso", order: 0, partition: `persist:wa-${id}`, notifications: {} as any, sleeping: false, createdAt: "", lastOpenedAt: "", zoomPercent: 100, permissions: {} as any, proxyMode: mode, proxy, themeHintShown: true };
+  return { id, label: id === A ? "Travail" : "Perso", order: 0, partition: `persist:wa-${id}`, notifications: {} as any, sleeping: false, createdAt: "", lastOpenedAt: "", zoomPercent: 100, permissions: {} as any, proxyMode: mode, proxy, themeHintShown: true, delivery: "realtime" };
 }
 
 function fakeSession() {
@@ -70,6 +70,8 @@ function service(store: ReturnType<typeof fakeStore>, accounts: AccountConfig[],
     accounts: () => accounts,
     pages: () => [],
     accountForPage: (contents: any) => contents?.accountId,
+    live: () => true,
+    hasSession: (id) => sessions.has(id),
     notifyAuthProblem: notify,
     includeLoopback: false
   });
@@ -279,7 +281,9 @@ describe("menus du tray", () => {
     veiled: false,
     nowPlaying: null,
     downloads: { active: 0, progress: null },
-    zoomToast: null
+    zoomToast: null,
+    probePresentation: false,
+    presented: true
   };
   const labels = (items: MenuItemModel[]) => items.map((item) => (item.kind === "separator" ? "—" : item.label));
 

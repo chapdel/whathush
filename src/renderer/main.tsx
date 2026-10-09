@@ -9,6 +9,7 @@ import { compactSidebar, CONNECTION_BAR_HEIGHT, leastUsedAccountColor, SIDEBAR_W
 import { formatRemaining, lifecycleLabel } from "../shared/format";
 import { formatDateTime, formatNumber, setLocale, t } from "../shared/i18n";
 import type { AccountItem, ShellState } from "../shared/ipc";
+import { PRESENTATION_PROBE, PresentationProbe } from "../shared/presentation";
 import { SHORTCUTS } from "../shared/shortcuts";
 import { api, useNow, useShellState, useWindowWidth } from "./api";
 import { Avatar, AccountIconPicker, Icon, Modal, ShortcutKeys, Swatches } from "./components/ui";
@@ -157,9 +158,15 @@ function sourceLabel(source: AccountItem["policy"]["source"]): string {
 function statusLine(account: AccountItem, now: Date): { text: string; tone: "" | "warn" | "error" } {
   if (account.inCall) return { text: t("status.callInProgress"), tone: "" };
   if (account.playback?.playing) return { text: t("media.playing"), tone: "" };
+  // Ce qui demande l'utilisateur passe avant le mode économie.
   if (account.lifecycle === "needs_qr") return { text: t("status.scanQr"), tone: "warn" };
   if (account.lifecycle === "crashed") return { text: t("status.errorReload"), tone: "error" };
   if (account.lifecycle === "offline") return { text: t("status.offline"), tone: "warn" };
+  if (account.economy?.relaying) return { text: t("status.relaying"), tone: "" };
+  if (account.economy?.dozing) {
+    const next = account.economy.nextRelayAt ? formatDateTime(new Date(account.economy.nextRelayAt), { timeStyle: "short" }) : null;
+    return { text: next ? t("status.economyNext", { time: next }) : t("status.economy"), tone: "" };
+  }
   if (account.lifecycle !== "ready") return { text: lifecycleLabel(account.lifecycle), tone: "" };
   if (account.policy.mode !== "normal") {
     const label = account.policy.mode === "snoozed" ? t("status.snooze") : t("status.callsOnly");
@@ -496,8 +503,48 @@ function ChooseAccountModal({ state, onClose }: { state: ShellState; onClose(): 
   );
 }
 
+/**
+ * Sonde de présentation : sous Wayland, une fenêtre réduite par le bureau n'est signalée
+ * à Electron que par « blur » et WhatsApp continue de se croire affiché. Le compositeur
+ * cesse en revanche d'envoyer des images : une image demandée qui ne vient pas le révèle
+ * (une demande toutes les 3 s). Active seulement quand elle sert : chaque demande réveille
+ * aussi le processus graphique.
+ */
+function usePresentationProbe(enabled: boolean, presented: boolean): void {
+  // État connu du processus principal au moment où la sonde (re)démarre.
+  const known = useRef(presented);
+  known.current = presented;
+  useEffect(() => {
+    if (!enabled) return;
+    const probe = new PresentationProbe(PRESENTATION_PROBE.misses, known.current);
+    const report = (presented: boolean | null) => {
+      if (presented !== null) api.command({ type: "presentation", presented });
+    };
+    const check = () => {
+      const { request, presented } = probe.tick(document.visibilityState === "visible");
+      report(presented);
+      if (request) requestAnimationFrame(() => report(probe.frame()));
+    };
+    // Première image demandée tout de suite : un état « non présentée » laissé par une sonde
+    // arrêtée est corrigé aussitôt.
+    check();
+    const timer = setInterval(check, PRESENTATION_PROBE.intervalMs);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") report(probe.reset());
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    // Sonde arrêtée : rien n'est annoncé (la fenêtre peut être toujours réduite) ; la
+    // prochaine sonde corrigera l'état dès sa première image.
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [enabled]);
+}
+
 function App() {
   const state = useShellState();
+  usePresentationProbe(state?.probePresentation ?? false, state?.presented ?? true);
   const windowWidth = useWindowWidth();
   const [modal, setModal] = useState<ModalState>(null);
   const openAdd = useCallback(() => setModal({ kind: "add" }), []);

@@ -38,6 +38,13 @@ WhatsApp Web lets you use one account per browser. WhatHush opens the official W
 - **Deep sleep**: put an account you rarely use to sleep to free its memory; it wakes up without a QR code.
 - **Voice messages keep playing** when you switch accounts, with Pause and Resume in the sidebar and the tray.
 
+### Light on resources
+
+- **WhatsApp rests when nobody is looking**: when you step away, lock your screen or minimize the window (Wayland included), the account on screen is hidden. It stays connected and keeps notifying you, but stops running at full speed and marks nothing as read; it's back the moment you return.
+- **Saver mode**, account by account: a hidden account sleeps and checks for messages every 15, 30 or 60 minutes, freeing its memory. Optionally, every account switches to it while WhatHush sits in the tray.
+- **Gentle start-up**: accounts load one after the other, and only once your desktop has settled when WhatHush starts in the tray.
+- **No slow creep over the days**: a hidden account whose page has doubled in size is quietly reloaded while you're away, and caches are capped.
+
 ### Private by design
 
 - **Lock with a code**: at start-up, when the window is hidden, after inactivity, or together with your desktop session.
@@ -88,7 +95,7 @@ On your computer only, in `~/.config/mcdesk/`, readable by your user alone. Logs
 WhatHush gives WhatsApp Web access to your microphone, camera and screen sharing. Calls themselves depend on what WhatsApp Web offers, and are still being tested with real accounts.
 
 **What's still experimental?**
-A few features depend on details of WhatsApp Web or of your desktop and are still being checked with real accounts: calls and call notifications ("calls only" Focus), the per-message blur, notification photos, and locking together with the desktop session on GNOME and KDE. The [test protocol](lab/README.md) lists everything that is being verified.
+A few features depend on details of WhatsApp Web or of your desktop and are still being checked with real accounts: calls and call notifications ("calls only" Focus), the per-message blur, notification photos, locking together with the desktop session on GNOME and KDE, and how WhatsApp notifies the messages a saver-mode account collects when it wakes up (WhatHush shows a "New messages" summary when it doesn't). The [test protocol](lab/README.md) lists everything that is being verified.
 
 **Found a bug or have an idea?**
 [Open an issue](https://github.com/chapdel/whathush/issues). A diagnostic report (see above) helps a lot.
@@ -116,9 +123,11 @@ Data lives in `~/.config/mcdesk/` (mode 0700; `~/.config/mcdesk-demo/` for the d
 | Command | What it checks |
 |---|---|
 | `npm run typecheck` | types across the whole project |
-| `npm test` | 203 unit tests: policy, Snooze/Focus expiry, time zones, state machine, account manager, links, storage and v1 → v2 migrations, menus, IPC, the `app://` protocol, autostart, language catalogues, shortcuts, media playback, download history, permissions, lock, proxy and SOCKS5 relay (against a fake upstream proxy), encrypted credentials, veil, redacted report, context menu, tray menus, notification photos, spell checker |
-| `npm run test:e2e` | 47 end-to-end tests (Playwright drives Electron headless against the fake page): keyboard, dialogs, resizing, themes and HiDPI, English interface, clipboard, playback, zoom, downloads, report, lock, veil, permissions, HTTP and SOCKS5 proxies, notification photos; screenshots go to `test-results/screens/` |
-| `npm run test:native` | the visibility rule measured without Playwright (Playwright emulates page focus, which would skew the result), including while locked, and Snooze muting a sound started by a hidden page |
+| `npm test` | 246 unit tests: policy, Snooze/Focus expiry, time zones, state machine, account manager and its start-up queue, links, storage and v1 → v3 migrations, menus, IPC, the `app://` protocol, autostart, language catalogues, shortcuts, media playback, download history, permissions, lock and its session watchers, proxy and SOCKS5 relay (against a fake upstream proxy), encrypted credentials, veil, redacted report, context menu, tray menus, notification photos, spell checker, presence, saver mode, recycling, single instance |
+| `npm run test:e2e` | 58 end-to-end tests (Playwright drives Electron headless against the fake page): keyboard, dialogs, resizing, themes and HiDPI, English interface, clipboard, playback, zoom, downloads, report, lock, veil, permissions, HTTP and SOCKS5 proxies, notification photos, hidden window and away detection, saver mode and its summary notification, recycling; screenshots go to `test-results/screens/` |
+| `npm run test:native` | the visibility rule measured without Playwright (Playwright emulates page focus, which would skew the result), including while locked, when the window stops being drawn and when the user steps away, and Snooze muting a sound started by a hidden page |
+| `npm run test:kwin` | a window minimized by KWin (which Electron doesn't see on Wayland) hides WhatsApp; runs in a nested, off-screen KWin and is skipped when `kwin_wayland` is missing |
+| `npm run bench` | resource benchmark (memory and CPU per process, read from `/proc`) on a synthetic signed-in page; `-- --scenario hidden\|visible\|minimized\|away\|economy\|tray\|startup`, `--real` for web.whatsapp.com (signed out), `--check` fails beyond the regression thresholds checked in CI; results in `test-results/bench/` |
 | `npm run build && ./node_modules/.bin/playwright test --config playwright.native.config.ts` | windows and tray on the current desktop, Wayland and X11 backends depending on the session; uses local test accounts |
 | `cd lab && npm run smoke` | the [Feasibility Lab](lab/README.md) smoke test |
 | `npm run icons` | regenerates the numbered tray icons (ImageMagick) |

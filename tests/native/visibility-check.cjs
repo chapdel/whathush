@@ -52,6 +52,18 @@ async function until(condition, timeout = 15000) {
   await application.lock.unlock("1234");
   const afterUnlock = await settle("hidden", "visible");
 
+  // Fenêtre non présentée (réduite sous Wayland, signalée par la sonde de la coque) :
+  // la page du compte affiché passe « hidden » (bridée, rien n'est lu), puis revient.
+  application.presence.setPresented(false);
+  const notPresented = await settle("hidden", "hidden");
+  application.presence.setPresented(true);
+  const presentedAgain = await settle("hidden", "visible");
+  // Absence (5 min d'inactivité par défaut) : même chose, retour au premier geste.
+  application.probe.idleSeconds = 400;
+  const away = await settle("hidden", "hidden");
+  application.probe.idleSeconds = 0;
+  const back = await settle("hidden", "visible");
+
   // Une page cachée en Snooze qui lance un son d'elle-même reste coupée (son
   // origine se mesure à la vraie visibilité, que Playwright fausserait).
   application.policy.snooze(a.id, { kind: "minutes", minutes: 60 });
@@ -60,6 +72,6 @@ async function until(condition, timeout = 15000) {
   await until(() => application.playback.forAccount(a.id, Date.now())?.playing === true);
   await sleep(300);
   const hiddenPlayback = { muted: views.webContents(a.id).isAudioMuted(), userStarted: application.playback.forAccount(a.id, Date.now())?.userStarted ?? null };
-  console.log("RESULT " + JSON.stringify({ afterA, afterB, duringModal, afterModal, duringLock, afterUnlock, hiddenPlayback }));
+  console.log("RESULT " + JSON.stringify({ afterA, afterB, duringModal, afterModal, duringLock, afterUnlock, notPresented, presentedAgain, away, back, hiddenPlayback }));
   process.exit(0);
 })();

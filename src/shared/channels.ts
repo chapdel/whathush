@@ -15,6 +15,8 @@ export const CHANNELS = {
   waNotificationClick: "wa:notification-click",
   waMedia: "wa:media",
   waLinkState: "wa:link-state",
+  /** Le principal redemande l'état de liaison (retour du réseau, sans rechargement). */
+  waLinkStateRequest: "wa:link-state-request",
   waEnv: "wa:env",
   waSwNotification: "wa:sw-notification",
   waVisibility: "wa:visibility",

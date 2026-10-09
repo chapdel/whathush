@@ -5,7 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { WHATSAPP_ORIGIN, WHATSAPP_URL } from "../shared/constants";
 import { APP_ID, DATA_DIR_NAME, PRODUCT_NAME } from "../shared/identity";
-import { Application } from "./app";
+import { Application, type AppOptions } from "./app";
+import { claimInstance, handOver, killOrphans, orphanedProcesses, otherInstance, releaseInstance, takeHandOver } from "./instance-guard";
 import { createLogger } from "./log";
 import { registerRendererScheme, serveRenderer } from "./renderer-protocol";
 import { chromeUserAgent, installBundledDictionaries } from "./sessions/session-factory";
@@ -40,6 +41,10 @@ if (TEST) {
 }
 // Saisie IME / emoji sous Wayland natif.
 if (process.env.XDG_SESSION_TYPE === "wayland") app.commandLine.appendSwitch("enable-wayland-ime");
+// Caches de chaque compte plafonnés (cache HTTP et cache du code compilé, vérifié) : sans
+// plafond, le Code Cache d'un seul compte atteignait 299 Mo (versions successives de
+// WhatsApp). 64 Mo gardent la version courante compilée : pas de recompilation à chaque relève.
+app.commandLine.appendSwitch("disk-cache-size", String(64 * 1024 * 1024));
 
 const targetUrl = process.env.WHATHUSH_TARGET_URL ?? WHATSAPP_URL;
 const whatsappOrigin = process.env.WHATHUSH_TARGET_URL ? new URL(targetUrl).origin : WHATSAPP_ORIGIN;
@@ -54,10 +59,43 @@ app.on("web-contents-created", (_event, contents) => {
 });
 
 let application: Application | null = null;
+const FLATPAK = Boolean(process.env.FLATPAK_ID);
 
-if (!SELF_TEST && !app.requestSingleInstanceLock()) {
+/** Tests : délais raccourcis (mode économie, recyclage, mesures, présence). */
+function testTimings(): AppOptions["timings"] | undefined {
+  if (!TEST || !process.env.WHATHUSH_TEST_TIMINGS) return undefined;
+  try {
+    return JSON.parse(process.env.WHATHUSH_TEST_TIMINGS) as AppOptions["timings"];
+  } catch {
+    return undefined;
+  }
+}
+
+const singleInstanceLock = SELF_TEST || app.requestSingleInstanceLock();
+// Seconde ligne de défense du verrou d'instance unique (hors Flatpak : espace de PID propre).
+// Lue après le verrou : Chromium a pu terminer une instance bloquée pour le prendre.
+const runningInstance = singleInstanceLock && !SELF_TEST && !FLATPAK ? otherInstance(userData) : null;
+
+if (!singleInstanceLock || runningInstance !== null) {
+  // Verrou de Chromium contourné (socket disparue de /tmp) : l'instance en place s'affiche et
+  // ouvre nos liens. (Verrou refusé : Chromium l'a prévenue lui-même, par second-instance.)
+  if (runningInstance !== null) {
+    handOver(userData, process.argv);
+    try {
+      process.kill(runningInstance, "SIGUSR2");
+    } catch {
+      // disparue entre-temps
+    }
+  }
   app.quit();
 } else {
+  if (!SELF_TEST && !FLATPAK) {
+    // Une seconde instance dont le verrou de Chromium a échoué nous demande de nous afficher
+    // (gestionnaire posé avant le fichier d'instance : sans lui, SIGUSR2 terminerait le processus).
+    process.on("SIGUSR2", () => application?.handleSecondInstance(takeHandOver(userData)));
+    claimInstance(userData);
+    app.on("will-quit", () => releaseInstance(userData));
+  }
   app.on("second-instance", (_event, argv) => application?.handleSecondInstance(argv));
   app.on("window-all-closed", () => app.quit());
 
@@ -66,6 +104,14 @@ if (!SELF_TEST && !app.requestSingleInstanceLock()) {
     // de plantage en mode headless (constat du Lab).
     Menu.setApplicationMenu(null);
     const log = createLogger(path.join(userData, "logs"), { console: !app.isPackaged && !TEST });
+    // Processus d'une instance précédente tuée brutalement : ils gardent le profil ouvert.
+    if (!FLATPAK) {
+      const orphans = orphanedProcesses(userData);
+      if (orphans.length > 0) {
+        log.warn("orphans-killed", { count: orphans.length });
+        killOrphans(userData, orphans);
+      }
+    }
     const store = new AppStore(userData, log);
 
     serveRenderer(path.join(distDir, "renderer"));
@@ -87,7 +133,8 @@ if (!SELF_TEST && !app.requestSingleInstanceLock()) {
       devTools,
       initialArgv: process.argv,
       // Origine de la fausse page qui sert les photos, en test seulement.
-      ...(TEST && process.env.WHATHUSH_TEST_AVATAR_ORIGIN ? { avatarOrigins: [process.env.WHATHUSH_TEST_AVATAR_ORIGIN] } : {})
+      ...(TEST && process.env.WHATHUSH_TEST_AVATAR_ORIGIN ? { avatarOrigins: [process.env.WHATHUSH_TEST_AVATAR_ORIGIN] } : {}),
+      ...(testTimings() ? { timings: testTimings() } : {})
     });
     if (TEST) (globalThis as { __whathush?: Application }).__whathush = application;
     await application.start();

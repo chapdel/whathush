@@ -41,6 +41,7 @@ jobs:
       - run: npm run build
       - run: npx playwright test
       - run: node tests/native/run.mjs
+      - run: node scripts/bench.mjs --check --scenario socle,hidden,minimized
       - run: npx electron-builder --linux AppImage deb rpm tar.gz --publish never
       - name: Auto-test du binaire empaqueté
         run: WHATHUSH_USER_DATA="$(mktemp -d)" ./release/linux-unpacked/whathush --self-test --ozone-platform=headless

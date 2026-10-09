@@ -95,6 +95,12 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.3.0" date="2026-10-09">
+      <description>
+        <p>Much lighter on resources: WhatsApp is hidden and throttled when you are away or the window is minimized (Wayland included), a saver mode lets hidden accounts sleep and check for messages periodically, accounts start one after the other, swollen pages are reloaded while you are away, caches are capped, and background helpers no longer outlive the app.</p>
+        <p xml:lang="fr">Bien plus léger : WhatsApp est masqué et bridé pendant une absence ou fenêtre réduite (Wayland compris), un mode économie endort les comptes cachés et relève leurs messages à intervalle régulier, les comptes démarrent l’un après l’autre, les pages qui gonflent sont rechargées pendant une absence, les caches sont plafonnés, et les processus auxiliaires ne survivent plus à l’application.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-05">
       <description>
         <p>English interface, offline spell checking, lock by code, privacy veil, per-account permissions, HTTP and SOCKS5 proxies with authentication, now-playing indicator, download history, per-account zoom, keyboard shortcuts sheet and diagnostic report.</p>
