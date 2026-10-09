@@ -25,9 +25,9 @@ source=("whathush-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/whathush
         "${_appid}.desktop::${_raw}/packaging/linux/${_appid}.desktop"
         "${_appid}.metainfo.xml::${_raw}/packaging/linux/${_appid}.metainfo.xml"
         "${_appid}.png::${_raw}/build/icons/512x512.png")
-sha256sums=('e68a1f6a0b649a59bab3efabeccc66c06c99ee3964afdc47dad8cb7e1e3635bd'
+sha256sums=('1f427a36cd1e60c595d38621aa2b7e1a6525687aab0d7f49defb84add9fa61a7'
             '1cd000e6d82f17cedbdb773705d6b29c3bdaa60e195234d6f9c5d5c5dfe07424'
-            '801ffeedaf17e68992a0107bd035d4bc0802d4b9f715e4c3a71201bf5f3c0545'
+            '10b963ca8f0b27c7894ffe39ac6b1c7fe8cea8d8100c06092b2b3ff67a69cadb'
             '1cae46e4c22a84c4735cac999c458bb94ebb844a511ed410b16c26e4b08a81c7')
 
 package() {
