@@ -5,7 +5,7 @@
 
 pkgname=whathush-bin
 _appid=io.github.chapdel.whathush
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="Several WhatsApp Web accounts side by side, with Snooze, Focus and deep sleep (not affiliated with WhatsApp or Meta)"
 arch=('x86_64')
