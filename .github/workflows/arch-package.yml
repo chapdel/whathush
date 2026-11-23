@@ -1,0 +1,42 @@
+name: Paquet Arch pour une release publiée
+
+# Joint le paquet pacman (.pkg.tar.zst) à une release déjà publiée qui n'en a pas
+# (avant que release.yml ne le construise). Le PKGBUILD de la branche choisie doit
+# porter la version du tag et les sommes des fichiers de cette release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag de la release (vX.Y.Z)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  arch:
+    name: .pkg.tar.zst construit, testé et joint
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Le PKGBUILD et package.json correspondent au tag
+        run: |
+          grep -qx "pkgver=${TAG#v}" packaging/aur/PKGBUILD || { echo "pkgver du PKGBUILD différent de $TAG" >&2; exit 1; }
+          [ "$(node -p 'require("./package.json").version')" = "${TAG#v}" ] || { echo "package.json différent de $TAG" >&2; exit 1; }
+      - name: Paquet construit depuis les fichiers publiés (sommes vérifiées)
+        run: packaging/aur/build-package.sh --published
+      - name: .pkg.tar.zst installé dans Arch Linux
+        run: |
+          docker run --rm -v "$PWD/release":/release:ro archlinux:latest bash -c '
+            pacman -Syu --noconfirm >/dev/null && pacman -U --noconfirm /release/*.pkg.tar.zst >/dev/null
+            WHATHUSH_USER_DATA=$(mktemp -d) whathush --self-test --no-sandbox --ozone-platform=headless'
+      - name: Paquet et SHA256SUMS joints à la release
+        working-directory: release
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS
+          grep -v '\.pkg\.tar\.zst$' SHA256SUMS > sums || true
+          sha256sum *.pkg.tar.zst >> sums && mv sums SHA256SUMS
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber *.pkg.tar.zst SHA256SUMS

@@ -77,9 +77,10 @@ Download the package for your system from the [latest release](https://github.co
 |---|---|---|
 | Fedora | `.rpm` | `sudo dnf install ./whathush-0.3.0.x86_64.rpm` |
 | Debian, Ubuntu and derivatives | `.deb` | `sudo apt install ./whathush_0.3.0_amd64.deb` |
+| Arch Linux and derivatives (Omarchy, EndeavourOS, Manjaro…) | `.pkg.tar.zst` | `sudo pacman -U ./whathush-bin-0.3.0-1-x86_64.pkg.tar.zst` |
 | Any distribution | `.AppImage` | `chmod +x WhatHush-0.3.0-x86_64.AppImage`, then run it; it updates itself |
 
-The AUR package (`whathush-bin`) and Flathub are on their way. `SHA256SUMS` in each release lets you check your download.
+The AUR package (`whathush-bin`, the same package as the `.pkg.tar.zst`) and Flathub are on their way. `SHA256SUMS` in each release lets you check your download.
 
 **First launch**: click *Add account*, then scan the QR code from your phone (WhatsApp → *Linked devices*). Each account uses one linked device, and WhatsApp allows up to four per phone number.
 
@@ -162,7 +163,7 @@ After any change to `package-lock.json`, regenerate the Flatpak's npm sources wi
 | AppImage | self-test with interface rendering |
 | `.deb` | installed in Ubuntu 24.04: dependencies, files, desktop entry, AppArmor profile, self-test with rendering |
 | `.rpm` | installed in Fedora 44: dependencies, valid desktop entry, self-test with rendering |
-| AUR (`packaging/aur/PKGBUILD`) | `makepkg` (checksums verified), then `pacman -U` in Arch Linux, self-test with rendering |
+| AUR (`packaging/aur/PKGBUILD`) and `.pkg.tar.zst` | `makepkg` (checksums verified) by `packaging/aur/build-package.sh`, then `pacman -U` in Arch Linux, self-test with rendering; the release attaches the built package |
 | Flatpak | built from source on the Electron 26.08 base app with zypak, installed, self-test with rendering inside the real sandbox, uninstalled |
 
 The packaged binary has its Electron fuses set: no `RunAsNode`, no `NODE_OPTIONS`, no `--inspect`, cookie encryption on, and the app loads only from its ASAR archive.
