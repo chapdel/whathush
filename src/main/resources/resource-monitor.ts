@@ -8,7 +8,7 @@ import { app, type ProcessMetric } from "electron";
 import { EventEmitter } from "node:events";
 import { formatNumber, t } from "../../shared/i18n";
 import type { Notice } from "../../shared/ipc";
-import { accountsToAutoSleep, RECYCLE, recycleCandidate, sleepSuggestion, type RecycleThresholds } from "../core/resources";
+import { accountsToAutoSleep, PURGE, purgeCandidates, RECYCLE, recycleCandidate, sleepSuggestion, type PurgeThresholds, type RecycleThresholds } from "../core/resources";
 import type { AccountManager } from "../accounts/account-manager";
 import type { CallCoordinator } from "../calls/call-coordinator";
 import type { Logger } from "../log";
@@ -34,6 +34,8 @@ export interface ResourceMonitorDeps {
   now?: () => number;
   /** Tests : seuils de recyclage raccourcis. */
   recycleThresholds?: RecycleThresholds;
+  /** Tests : délais de purge de mémoire raccourcis. */
+  purgeThresholds?: PurgeThresholds;
   intervalMs?: { normal: number; settings: number };
 }
 
@@ -51,6 +53,7 @@ export class ResourceMonitor extends EventEmitter<{ memory: [] }> {
   private lastSuggestion = 0;
   private readonly baselines = new Map<string, Baseline>();
   private readonly lastRecycled = new Map<string, number>();
+  private readonly lastPurged = new Map<string, number>();
   /** Temps processeur cumulé par processus (secondes), au début de la période du journal. */
   private perfStart: { at: number; cpu: Map<string, number> } | null = null;
   private readonly now: () => number;
@@ -128,6 +131,7 @@ export class ResourceMonitor extends EventEmitter<{ memory: [] }> {
     for (const id of due) this.deps.accounts.sleep(id);
 
     this.recycle(now, pids);
+    this.purge(now, pids);
     this.suggestEconomy(now);
     this.perfLog(now, metrics, pids);
     if (changed) this.emit("memory");
@@ -162,6 +166,31 @@ export class ResourceMonitor extends EventEmitter<{ memory: [] }> {
     this.lastRecycled.set(candidate, now);
     this.baselines.delete(candidate);
     this.deps.accounts.recycle(candidate);
+  }
+
+  /** Pages cachées depuis un moment : mémoire libérée sans rechargement. */
+  private purge(now: number, pids: Map<string, number>): void {
+    for (const id of [...this.lastPurged.keys()]) if (!pids.has(id)) this.lastPurged.delete(id);
+    const activeId = this.deps.accounts.active();
+    const due = purgeCandidates(
+      [...pids.keys()].map((id) => ({
+        id,
+        lifecycle: this.deps.accounts.runtime(id)?.lifecycle ?? "loading",
+        active: id === activeId,
+        inCall: this.deps.calls.inCall(id),
+        playing: this.deps.playing(id),
+        hiddenSince: this.deps.accounts.hiddenSince(id),
+        loadedSince: this.baselines.get(id)?.since ?? now,
+        lastPurgedAt: this.lastPurged.get(id) ?? null
+      })),
+      now,
+      this.deps.purgeThresholds ?? PURGE
+    );
+    for (const id of due) {
+      this.lastPurged.set(id, now);
+      this.deps.log.info("memory-purge", { id, mb: this.memory.get(id) });
+      this.deps.views().purgeMemory(id);
+    }
   }
 
   /** Au-delà du seuil de mémoire, propose le mode économie pour le compte caché depuis le plus longtemps. */

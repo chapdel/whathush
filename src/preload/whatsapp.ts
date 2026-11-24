@@ -365,6 +365,13 @@ ipcRenderer.on(CHANNELS.waLinkStateRequest, () => {
   reportLinkState();
 });
 
+// --- Mémoire d'une page cachée ---------------------------------------------------------------
+// Demandée par le principal (compte caché depuis un moment) : caches de Blink et tas V8.
+ipcRenderer.on(CHANNELS.waPurge, () => {
+  webFrame.clearCache();
+  ipcRenderer.send(CHANNELS.waPurged);
+});
+
 // --- Voile de confidentialité -------------------------------------------------------------
 // Le flou est appliqué par le processus principal (CSS inséré) ; ici, on signale
 // seulement le premier survol ou clic pendant le voile. Pendant un partage d'écran

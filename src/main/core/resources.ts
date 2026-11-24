@@ -78,9 +78,11 @@ export interface RecycleThresholds {
   baselineAfterMs: number;
 }
 
+// Abaissés (700 Mo et × 2 auparavant) : une page qui a grossi des trois quarts
+// est rechargée, toujours cachée depuis 1 h, de préférence pendant une absence.
 export const RECYCLE: RecycleThresholds = {
-  minMB: 700,
-  growthFactor: 2,
+  minMB: 600,
+  growthFactor: 1.75,
   hiddenMs: 60 * 60_000,
   longHiddenMs: 4 * 60 * 60_000,
   everyMs: 12 * 60 * 60_000,
@@ -102,7 +104,7 @@ export interface RecycleInput {
 
 /**
  * Compte à recharger maintenant (au plus un à la fois) : caché, connecté, hors appel et
- * lecture, dont la page a doublé depuis son chargement. De préférence pendant une absence
+ * lecture, dont la page a grossi des trois quarts depuis son chargement. De préférence pendant une absence
  * ou fenêtre masquée : un rechargement coûte quelques secondes de processeur.
  */
 export function recycleCandidate(
@@ -121,4 +123,49 @@ export function recycleCandidate(
   });
   due.sort((a, b) => (b.rssMB ?? 0) - (a.rssMB ?? 0));
   return due[0]?.id ?? null;
+}
+
+// --- Purge de mémoire --------------------------------------------------------------------
+// Sans rechargement : la page cachée libère ses caches (images décodées, ressources) et
+// son tas JavaScript inutilisé (webFrame.clearCache). Quelques millisecondes de processeur.
+
+export interface PurgeThresholds {
+  /** Caché depuis au moins ce délai… */
+  hiddenMs: number;
+  /** … et chargé depuis au moins ce délai (jamais pendant une relève du mode économie). */
+  loadedMs: number;
+  /** Tant qu'il reste caché, une nouvelle purge au plus sur cette durée. */
+  everyMs: number;
+}
+
+export const PURGE: PurgeThresholds = {
+  hiddenMs: 10 * 60_000,
+  loadedMs: 10 * 60_000,
+  everyMs: 60 * 60_000
+};
+
+export interface PurgeInput {
+  id: string;
+  lifecycle: Lifecycle;
+  active: boolean;
+  inCall: boolean;
+  playing: boolean;
+  hiddenSince: number | null;
+  /** Instant de création du processus de la page (chargement ou rechargement). */
+  loadedSince: number;
+  lastPurgedAt: number | null;
+}
+
+/**
+ * Comptes dont la page cachée doit libérer sa mémoire maintenant : connectés, hors appel
+ * et lecture, cachés et chargés depuis 10 min ; une fois par période cachée, puis toutes les heures.
+ */
+export function purgeCandidates(inputs: readonly PurgeInput[], now: number, limits: PurgeThresholds = PURGE): string[] {
+  return inputs
+    .filter((input) => {
+      if (input.lifecycle !== "ready" || input.active || input.inCall || input.playing || input.hiddenSince === null) return false;
+      if (now - input.hiddenSince < limits.hiddenMs || now - input.loadedSince < limits.loadedMs) return false;
+      return input.lastPurgedAt === null || input.lastPurgedAt < input.hiddenSince || now - input.lastPurgedAt >= limits.everyMs;
+    })
+    .map((input) => input.id);
 }

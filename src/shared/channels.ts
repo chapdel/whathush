@@ -25,6 +25,9 @@ export const CHANNELS = {
   waMediaControl: "wa:media-control",
   /** Textes pour les métadonnées de lecture (« Message vocal »). */
   waLabels: "wa:labels",
+  /** Page cachée : libérer la mémoire (principal → page), puis accusé (page → principal). */
+  waPurge: "wa:purge",
+  waPurged: "wa:purged",
   /** État du voile (principal → page), survol ou clic (page → principal), auto-test du flou des messages. */
   waVeil: "wa:veil",
   waVeilReveal: "wa:veil-reveal",

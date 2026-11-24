@@ -7,7 +7,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ECONOMY_TIMING, economyActions, economyApplies, relayFinished, type EconomyAccount, type EconomyContext } from "../../src/main/core/economy";
 import { nextAway } from "../../src/main/core/presence";
-import { RECYCLE, recycleCandidate, type RecycleInput } from "../../src/main/core/resources";
+import { PURGE, purgeCandidates, RECYCLE, recycleCandidate, type PurgeInput, type RecycleInput } from "../../src/main/core/resources";
 import { claimInstance, handOver, orphanedProcesses, otherInstance, processIdentity, releaseInstance, takeHandOver } from "../../src/main/instance-guard";
 import type { Logger } from "../../src/main/log";
 import { PresenceService } from "../../src/main/presence/presence-service";
@@ -160,7 +160,7 @@ describe("recyclage", () => {
     lastRecycledAt: null
   };
 
-  it("recharge une page cachée qui a doublé, pendant une absence ou fenêtre masquée", () => {
+  it("recharge une page cachée qui a grossi des trois quarts, pendant une absence ou fenêtre masquée", () => {
     expect(recycleCandidate([input], { now: NOW, userAway: true, windowHidden: false })).toBe("a");
     expect(recycleCandidate([input], { now: NOW, userAway: false, windowHidden: true })).toBe("a");
     // Utilisateur présent : seulement après 4 h cachée.
@@ -169,17 +169,55 @@ describe("recyclage", () => {
   });
 
   it("jamais affichée, en appel, en lecture, peu gonflée, ni deux fois en 12 h", () => {
+    // Seuils : 600 Mo et × 1,75 la mémoire de référence.
+    expect(recycleCandidate([{ ...input, rssMB: 620, baselineMB: 350 }], { now: NOW, userAway: true, windowHidden: true })).toBe("a");
     const away = { now: NOW, userAway: true, windowHidden: true };
     expect(recycleCandidate([{ ...input, active: true }], away)).toBeNull();
     expect(recycleCandidate([{ ...input, inCall: true }], away)).toBeNull();
     expect(recycleCandidate([{ ...input, playing: true }], away)).toBeNull();
-    expect(recycleCandidate([{ ...input, rssMB: 650 }], away)).toBeNull();
-    expect(recycleCandidate([{ ...input, baselineMB: 500 }], away)).toBeNull();
+    expect(recycleCandidate([{ ...input, rssMB: 590 }], away)).toBeNull();
+    expect(recycleCandidate([{ ...input, baselineMB: 550 }], away)).toBeNull();
     expect(recycleCandidate([{ ...input, hiddenSince: NOW - 30 * MIN }], away)).toBeNull();
     expect(recycleCandidate([{ ...input, lastRecycledAt: NOW - RECYCLE.everyMs + MIN }], away)).toBeNull();
     expect(recycleCandidate([{ ...input, baselineMB: null }], away)).toBeNull();
     // Le plus gros d'abord, un seul à la fois.
     expect(recycleCandidate([input, { ...input, id: "b", rssMB: 1200 }], away)).toBe("b");
+  });
+});
+
+describe("purge de mémoire des pages cachées", () => {
+  const input: PurgeInput = {
+    id: "a",
+    lifecycle: "ready",
+    active: false,
+    inCall: false,
+    playing: false,
+    hiddenSince: NOW - 15 * MIN,
+    loadedSince: NOW - 60 * MIN,
+    lastPurgedAt: null
+  };
+
+  it("une page cachée et chargée depuis 10 min libère sa mémoire", () => {
+    expect(purgeCandidates([input, { ...input, id: "b" }], NOW)).toEqual(["a", "b"]);
+    expect(purgeCandidates([{ ...input, hiddenSince: NOW - PURGE.hiddenMs + MIN }], NOW)).toEqual([]);
+    // Relève du mode économie ou page rechargée : pas tout de suite.
+    expect(purgeCandidates([{ ...input, loadedSince: NOW - 2 * MIN }], NOW)).toEqual([]);
+  });
+
+  it("jamais affichée, en appel, en lecture, ni avant d'être connectée", () => {
+    expect(purgeCandidates([{ ...input, active: true }], NOW)).toEqual([]);
+    expect(purgeCandidates([{ ...input, hiddenSince: null }], NOW)).toEqual([]);
+    expect(purgeCandidates([{ ...input, inCall: true }], NOW)).toEqual([]);
+    expect(purgeCandidates([{ ...input, playing: true }], NOW)).toEqual([]);
+    expect(purgeCandidates([{ ...input, lifecycle: "needs_qr" }], NOW)).toEqual([]);
+  });
+
+  it("une fois par période cachée, puis toutes les heures", () => {
+    // Purgée pendant cette période cachée : pas avant une heure.
+    expect(purgeCandidates([{ ...input, lastPurgedAt: NOW - 5 * MIN }], NOW)).toEqual([]);
+    expect(purgeCandidates([{ ...input, hiddenSince: NOW - 2 * PURGE.everyMs, lastPurgedAt: NOW - PURGE.everyMs }], NOW)).toEqual(["a"]);
+    // Réaffichée depuis la dernière purge : nouvelle période cachée.
+    expect(purgeCandidates([{ ...input, lastPurgedAt: NOW - 20 * MIN }], NOW)).toEqual(["a"]);
   });
 });
 
