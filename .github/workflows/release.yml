@@ -57,14 +57,23 @@ jobs:
           docker run --rm -v "$PWD/release":/release:ro registry.fedoraproject.org/fedora:44 bash -c '
             dnf install -y -q /release/*.rpm >/dev/null
             WHATHUSH_USER_DATA=$(mktemp -d) whathush --self-test --no-sandbox --ozone-platform=headless'
+      # Paquet pacman pour Arch Linux et dérivées (Omarchy, EndeavourOS, Manjaro…) :
+      # le PKGBUILD de l'AUR, construit par makepkg sur l'archive tar.gz ci-dessus.
+      - name: Paquet Arch Linux (.pkg.tar.zst)
+        run: packaging/aur/build-package.sh
+      - name: .pkg.tar.zst installé dans Arch Linux
+        run: |
+          docker run --rm -v "$PWD/release":/release:ro archlinux:latest bash -c '
+            pacman -Syu --noconfirm >/dev/null && pacman -U --noconfirm /release/*.pkg.tar.zst >/dev/null
+            WHATHUSH_USER_DATA=$(mktemp -d) whathush --self-test --no-sandbox --ozone-platform=headless'
       - name: Sommes SHA-256
         working-directory: release
-        run: sha256sum *.AppImage *.deb *.rpm *.tar.gz > SHA256SUMS
+        run: sha256sum *.AppImage *.deb *.rpm *.pkg.tar.zst *.tar.gz > SHA256SUMS
       - name: Release en brouillon
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
             --title "WhatHush ${GITHUB_REF_NAME#v}" --notes-file "$RUNNER_TEMP/notes.md" \
-            release/*.AppImage release/*.deb release/*.rpm release/*.tar.gz \
+            release/*.AppImage release/*.deb release/*.rpm release/*.pkg.tar.zst release/*.tar.gz \
             release/latest-linux.yml release/SHA256SUMS

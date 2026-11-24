@@ -218,6 +218,29 @@ test("recyclage : une page cachée qui a gonflé est recréée pendant une absen
   }
 });
 
+test("purge : une page cachée libère sa mémoire sans rechargement, jamais la page affichée", async () => {
+  const timings = { ...TIMINGS, monitorMs: { normal: 300, settings: 300 }, purge: { hiddenMs: 500, loadedMs: 500, everyMs: 600_000 } };
+  const { h, ids } = await setup(["Personnel", "Travail"], timings);
+  const [personnel, travail] = ids as [string, string];
+  try {
+    await command(h.app, { type: "switch-account", id: personnel });
+    // « Personnel » était caché pendant l'ajout de « Travail » : seul compte le journal après son affichage.
+    const shownAt = logText(h).length;
+    const page = () => h.app.evaluate((_electron, accountId) => (globalThis as any).__whathush.viewsManager().webContents(accountId)?.id ?? null, travail);
+    const before = await page();
+    // Accusé envoyé par la page après webFrame.clearCache() : la demande est bien exécutée.
+    await expect.poll(() => logText(h).includes(`"memory-purged","data":{"id":"${travail}"`), { timeout: 15_000 }).toBe(true);
+    expect(await page()).toBe(before);
+    // Une seule purge pendant cette période cachée ; jamais le compte affiché.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(logText(h).split(`"memory-purge","data":{"id":"${travail}"`).length - 1).toBe(1);
+    expect(logText(h).slice(shownAt)).not.toContain(`"memory-purge","data":{"id":"${personnel}"`);
+  } finally {
+    await h.close();
+    h.stopFake();
+  }
+});
+
 test("au repos, l'état n'est renvoyé à la coque que s'il change", async () => {
   const { h } = await setup(["Personnel", "Travail"], { ...TIMINGS, monitorMs: { normal: 300, settings: 300 } });
   try {

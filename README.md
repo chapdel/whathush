@@ -43,7 +43,7 @@ WhatsApp Web lets you use one account per browser. WhatHush opens the official W
 - **WhatsApp rests when nobody is looking**: when you step away, lock your screen or minimize the window (Wayland included), the account on screen is hidden. It stays connected and keeps notifying you, but stops running at full speed and marks nothing as read; it's back the moment you return.
 - **Saver mode**, account by account: a hidden account sleeps and checks for messages every 15, 30 or 60 minutes, freeing its memory. Optionally, every account switches to it while WhatHush sits in the tray.
 - **Gentle start-up**: accounts load one after the other, and only once your desktop has settled when WhatHush starts in the tray.
-- **No slow creep over the days**: a hidden account whose page has doubled in size is quietly reloaded while you're away, and caches are capped.
+- **No slow creep over the days**: an account hidden for 10 minutes frees its page's caches and unused memory, without reloading; a hidden account whose page has grown by three quarters is quietly reloaded while you're away, and caches are capped.
 
 ### Private by design
 
@@ -75,11 +75,12 @@ Download the package for your system from the [latest release](https://github.co
 
 | System | Package | Install |
 |---|---|---|
-| Fedora | `.rpm` | `sudo dnf install ./whathush-0.3.0.x86_64.rpm` |
-| Debian, Ubuntu and derivatives | `.deb` | `sudo apt install ./whathush_0.3.0_amd64.deb` |
-| Any distribution | `.AppImage` | `chmod +x WhatHush-0.3.0-x86_64.AppImage`, then run it; it updates itself |
+| Fedora | `.rpm` | `sudo dnf install ./whathush-0.3.1.x86_64.rpm` |
+| Debian, Ubuntu and derivatives | `.deb` | `sudo apt install ./whathush_0.3.1_amd64.deb` |
+| Arch Linux and derivatives (Omarchy, EndeavourOS, Manjaro…) | `.pkg.tar.zst` | `sudo pacman -U ./whathush-bin-0.3.1-1-x86_64.pkg.tar.zst` |
+| Any distribution | `.AppImage` | `chmod +x WhatHush-0.3.1-x86_64.AppImage`, then run it; it updates itself |
 
-The AUR package (`whathush-bin`) and Flathub are on their way. `SHA256SUMS` in each release lets you check your download.
+The AUR package (`whathush-bin`, the same package as the `.pkg.tar.zst`) and Flathub are on their way. `SHA256SUMS` in each release lets you check your download.
 
 **First launch**: click *Add account*, then scan the QR code from your phone (WhatsApp → *Linked devices*). Each account uses one linked device, and WhatsApp allows up to four per phone number.
 
@@ -123,8 +124,8 @@ Data lives in `~/.config/mcdesk/` (mode 0700; `~/.config/mcdesk-demo/` for the d
 | Command | What it checks |
 |---|---|
 | `npm run typecheck` | types across the whole project |
-| `npm test` | 246 unit tests: policy, Snooze/Focus expiry, time zones, state machine, account manager and its start-up queue, links, storage and v1 → v3 migrations, menus, IPC, the `app://` protocol, autostart, language catalogues, shortcuts, media playback, download history, permissions, lock and its session watchers, proxy and SOCKS5 relay (against a fake upstream proxy), encrypted credentials, veil, redacted report, context menu, tray menus, notification photos, spell checker, presence, saver mode, recycling, single instance |
-| `npm run test:e2e` | 58 end-to-end tests (Playwright drives Electron headless against the fake page): keyboard, dialogs, resizing, themes and HiDPI, English interface, clipboard, playback, zoom, downloads, report, lock, veil, permissions, HTTP and SOCKS5 proxies, notification photos, hidden window and away detection, saver mode and its summary notification, recycling; screenshots go to `test-results/screens/` |
+| `npm test` | 249 unit tests: policy, Snooze/Focus expiry, time zones, state machine, account manager and its start-up queue, links, storage and v1 → v3 migrations, menus, IPC, the `app://` protocol, autostart, language catalogues, shortcuts, media playback, download history, permissions, lock and its session watchers, proxy and SOCKS5 relay (against a fake upstream proxy), encrypted credentials, veil, redacted report, context menu, tray menus, notification photos, spell checker, presence, saver mode, recycling, memory purge, single instance |
+| `npm run test:e2e` | 59 end-to-end tests (Playwright drives Electron headless against the fake page): keyboard, dialogs, resizing, themes and HiDPI, English interface, clipboard, playback, zoom, downloads, report, lock, veil, permissions, HTTP and SOCKS5 proxies, notification photos, hidden window and away detection, saver mode and its summary notification, recycling, memory purge; screenshots go to `test-results/screens/` |
 | `npm run test:native` | the visibility rule measured without Playwright (Playwright emulates page focus, which would skew the result), including while locked, when the window stops being drawn and when the user steps away, and Snooze muting a sound started by a hidden page |
 | `npm run test:kwin` | a window minimized by KWin (which Electron doesn't see on Wayland) hides WhatsApp; runs in a nested, off-screen KWin and is skipped when `kwin_wayland` is missing |
 | `npm run bench` | resource benchmark (memory and CPU per process, read from `/proc`) on a synthetic signed-in page; `-- --scenario hidden\|visible\|minimized\|away\|economy\|tray\|startup`, `--real` for web.whatsapp.com (signed out), `--check` fails beyond the regression thresholds checked in CI; results in `test-results/bench/` |
@@ -150,7 +151,7 @@ podman run --rm --security-opt label=disable -v "$PWD":/work -w /work \
 # (--no-documents-portal only works around a broken document portal on the host)
 flatpak run --no-documents-portal org.flatpak.Builder --user --install-deps-from=flathub --force-clean \
   --repo=release/flatpak-repo release/flatpak-build packaging/flatpak/io.github.chapdel.whathush.yml
-flatpak build-bundle release/flatpak-repo release/WhatHush-0.3.0.flatpak io.github.chapdel.whathush
+flatpak build-bundle release/flatpak-repo release/WhatHush-0.3.1.flatpak io.github.chapdel.whathush
 ```
 
 After any change to `package-lock.json`, regenerate the Flatpak's npm sources with `packaging/flatpak/update-sources.sh` (needs [flatpak-node-generator](https://github.com/flatpak/flatpak-builder-tools/tree/master/node)). `npm run screenshots` regenerates the AppStream screenshots in `packaging/screenshots/`.
@@ -162,7 +163,7 @@ After any change to `package-lock.json`, regenerate the Flatpak's npm sources wi
 | AppImage | self-test with interface rendering |
 | `.deb` | installed in Ubuntu 24.04: dependencies, files, desktop entry, AppArmor profile, self-test with rendering |
 | `.rpm` | installed in Fedora 44: dependencies, valid desktop entry, self-test with rendering |
-| AUR (`packaging/aur/PKGBUILD`) | `makepkg` (checksums verified), then `pacman -U` in Arch Linux, self-test with rendering |
+| AUR (`packaging/aur/PKGBUILD`) and `.pkg.tar.zst` | `makepkg` (checksums verified) by `packaging/aur/build-package.sh`, then `pacman -U` in Arch Linux, self-test with rendering; the release attaches the built package |
 | Flatpak | built from source on the Electron 26.08 base app with zypak, installed, self-test with rendering inside the real sandbox, uninstalled |
 
 The packaged binary has its Electron fuses set: no `RunAsNode`, no `NODE_OPTIONS`, no `--inspect`, cookie encryption on, and the app loads only from its ASAR archive.
@@ -204,7 +205,7 @@ lab/                      Feasibility Lab, a separate throwaway project
 <summary><b>Releasing</b></summary>
 
 1. Bump `version` in `package.json` and `pkgver` in `packaging/aur/PKGBUILD`, and add a `<release>` entry to `packaging/linux/io.github.chapdel.whathush.metainfo.xml`: its English text becomes the release notes.
-2. Commit, then push a tag: `git tag v0.3.0 && git push origin master v0.3.0`. The [Release workflow](.github/workflows/release.yml) runs every test, builds the packages and creates a **draft** release with `SHA256SUMS` and `latest-linux.yml`.
+2. Commit, then push a tag: `git tag v0.3.1 && git push origin master v0.3.1`. The [Release workflow](.github/workflows/release.yml) runs every test, builds the packages and creates a **draft** release with `SHA256SUMS` and `latest-linux.yml`.
 3. Check the draft on GitHub, then publish it. Running AppImages pick up the update from then on.
 4. **AUR**: `git clone ssh://aur@aur.archlinux.org/whathush-bin.git ../whathush-bin`, then `packaging/aur/update.sh ../whathush-bin` (checksums and `.SRCINFO`, computed in an Arch container with podman), then commit and push in `../whathush-bin`.
 5. **Flathub**: `packaging/flatpak/prepare-flathub.sh <folder>` writes the manifest pinned to the tag, the npm sources and `flathub.json`. The first time, open a pull request against the `new-pr` branch of [flathub/flathub](https://github.com/flathub/flathub); afterwards, commit to the app's own Flathub repository.

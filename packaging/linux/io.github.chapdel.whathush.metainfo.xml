@@ -95,6 +95,12 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.3.1" date="2026-11-24">
+      <description>
+        <p>Lower memory use: an account hidden for 10 minutes frees its page’s caches and unused memory without reloading, and pages that grow are reloaded sooner while you are away. New package for Arch Linux and its derivatives (Omarchy, EndeavourOS, Manjaro…).</p>
+        <p xml:lang="fr">Moins de mémoire : un compte caché depuis 10 minutes libère les caches et la mémoire inutilisée de sa page sans rechargement, et les pages qui grossissent sont rechargées plus tôt pendant une absence. Nouveau paquet pour Arch Linux et ses dérivées (Omarchy, EndeavourOS, Manjaro…).</p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-10-09">
       <description>
         <p>Much lighter on resources: WhatsApp is hidden and throttled when you are away or the window is minimized (Wayland included), a saver mode lets hidden accounts sleep and check for messages periodically, accounts start one after the other, swollen pages are reloaded while you are away, caches are capped, and background helpers no longer outlive the app.</p>

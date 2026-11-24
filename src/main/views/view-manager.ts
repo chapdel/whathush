@@ -247,6 +247,11 @@ export class ViewManager {
     this.webContents(accountId)?.send(CHANNELS.waLinkStateRequest);
   }
 
+  /** La page cachée libère ses caches et son tas JavaScript inutilisé (sans rechargement). */
+  purgeMemory(accountId: string): void {
+    this.webContents(accountId)?.send(CHANNELS.waPurge);
+  }
+
   processId(accountId: string): number | null {
     const wc = this.webContents(accountId);
     if (!wc) return null;

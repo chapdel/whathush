@@ -55,7 +55,7 @@ import { alwaysAllow, normalizeOrigin, type PermissionSubject } from "./core/per
 import type { EconomyTiming } from "./core/economy";
 import { PlaybackTracker, shouldMute } from "./core/playback";
 import { NOT_PRESENTED_LOCK_DELAY_MS } from "./core/presence";
-import type { RecycleThresholds } from "./core/resources";
+import type { PurgeThresholds, RecycleThresholds } from "./core/resources";
 import { BUNDLED_DICTIONARIES, spellcheckPlan, systemDictionary, type SpellcheckPlan } from "./core/spellcheck";
 import { trayIconName } from "./core/tray";
 import { attachContextMenu, isTrayAvailable, setLaunchAtLogin, setWhatsappLinkHandler } from "./desktop/desktop";
@@ -96,6 +96,7 @@ export interface AppOptions {
     economyTickMs?: number;
     economyIntervalMs?: number;
     recycle?: RecycleThresholds;
+    purge?: PurgeThresholds;
     monitorMs?: { normal: number; settings: number };
     presencePollMs?: { present: number; away: number };
   };
@@ -290,6 +291,7 @@ export class Application {
       economyInterval: () => this.store.get("preferences").economy.intervalMinutes,
       log: this.log,
       ...(options.timings?.recycle ? { recycleThresholds: options.timings.recycle } : {}),
+      ...(options.timings?.purge ? { purgeThresholds: options.timings.purge } : {}),
       ...(options.timings?.monitorMs ? { intervalMs: options.timings.monitorMs } : {})
     });
     this.veil = new VeilService({ log: this.log, preferences: () => this.store.get("preferences").privacyVeil, pages: () => this.views?.allPages() ?? [] });
@@ -1609,6 +1611,10 @@ export class Application {
     ipcMain.on(CHANNELS.waSwNotification, (event) => {
       const id = this.whatsappSender(event);
       if (id) this.log.warn("sw-notification", { id, note: "notification via le service worker : non interceptée" });
+    });
+    ipcMain.on(CHANNELS.waPurged, (event) => {
+      const id = this.whatsappSender(event);
+      if (id && this.views.isMainView(id, event.sender)) this.log.info("memory-purged", { id });
     });
     ipcMain.on(CHANNELS.waVisibility, (event, raw: unknown) => {
       const id = this.whatsappSender(event);
